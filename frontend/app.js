@@ -11,6 +11,7 @@ function getRequiredElement(id) {
 const statusEl = getRequiredElement("status");
 const mintBtn = getRequiredElement("mintBtn");
 const viewBtn = getRequiredElement("viewBtn");
+const connectBtn = getRequiredElement("connectBtn");
 const rpcUrlInput = getRequiredElement("rpcUrlInput");
 const walletSelect = getRequiredElement("walletSelect");
 const tokenIdInput = getRequiredElement("tokenIdInput");
@@ -21,6 +22,7 @@ const ownershipStatusOutput = getRequiredElement("ownershipStatusOutput");
 const ownershipExplainOutput = getRequiredElement("ownershipExplainOutput");
 const loaderEl = getRequiredElement("loader");
 const loaderTextEl = getRequiredElement("loaderText");
+const connectedWalletOutput = getRequiredElement("connectedWalletOutput");
 const connectedAddressOutput = getRequiredElement("connectedAddressOutput");
 const myBalanceOutput = getRequiredElement("myBalanceOutput");
 const lastMintTokenOutput = getRequiredElement("lastMintTokenOutput");
@@ -37,6 +39,7 @@ let signer;
 let contract;
 let contractInfo;
 let connectedAddress = null;
+let connectedWalletLabel = null;
 const walletMintHistory = new Map();
 let ownershipRegistry = new Map();
 
@@ -81,7 +84,7 @@ function isValidPrivateKey(value) {
 }
 
 async function copyText(text, successMessage) {
-  if (!text || text === "-") {
+  if (!text || text === "-" || text === "None") {
     setStatus("Nothing to copy yet.");
     return;
   }
@@ -106,6 +109,15 @@ function setButtonLoading(button, isLoading, loadingText) {
 
   button.disabled = isLoading;
   button.textContent = isLoading ? loadingText : button.dataset.originalText;
+}
+
+function updateConnectionUi() {
+  const isConnected = Boolean(contract && connectedAddress);
+  mintBtn.disabled = !isConnected;
+  viewBtn.disabled = !isConnected;
+  connectedWalletOutput.textContent = connectedWalletLabel || "None";
+  connectedAddressOutput.textContent = connectedAddress || "None";
+  copyConnectedBtn.disabled = !isConnected;
 }
 
 async function refreshWalletStats() {
@@ -269,10 +281,9 @@ async function connectSampleWallet() {
 
     const network = await provider.getNetwork();
     connectedAddress = await signer.getAddress();
+    connectedWalletLabel = selectedWallet.label;
 
-    mintBtn.disabled = false;
-    viewBtn.disabled = false;
-    connectedAddressOutput.textContent = connectedAddress;
+    updateConnectionUi();
     await refreshOwnershipRegistry();
     await refreshWalletStats();
     renderRecentMintedIds();
@@ -417,7 +428,7 @@ async function init() {
     setStatus(
       `Contract loaded: ${contractInfo.address}\n` +
       `Network: ${contractInfo.network} (chainId ${contractInfo.chainId})\n` +
-      `Choose Wallet 1-3 in Step 1. It connects automatically.`
+      `Choose a wallet in Step 1 and click 'Connect'.`
     );
 
     setOwnershipStatus(
@@ -425,16 +436,16 @@ async function init() {
       "ERC-721 token IDs are global. Anyone can view metadata for existing IDs; ownership is tracked separately by wallet address."
     );
 
+    updateConnectionUi();
     renderMasterWalletView();
     renderRecentMintedIds();
-    await connectSampleWallet();
   } catch (err) {
     setStatus(`Initialization failed: ${err.message}`);
   }
 }
 
 function bindEvents() {
-  walletSelect.addEventListener("change", connectSampleWallet);
+  connectBtn.addEventListener("click", connectSampleWallet);
   mintBtn.addEventListener("click", mintNft);
   viewBtn.addEventListener("click", viewToken);
   copyConnectedBtn.addEventListener("click", () => copyText(connectedAddressOutput.textContent, "Connected wallet address copied."));

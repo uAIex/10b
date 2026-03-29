@@ -451,7 +451,7 @@
               data-tip="A wallet is your blockchain account. Example: pick Wallet 2 to mint as a different user than Wallet 1.">?</span>
           </h3>
 
-          <p class="helper">Pick Wallet 1, Wallet 2, or Wallet 3. No manual private key entry needed.</p>
+          <p class="helper">Pick a wallet, then click Connect. No manual private key entry needed.</p>
 
           <div class="row">
             <label for="rpcUrlInput">RPC URL</label>
@@ -469,7 +469,10 @@
               <option value="wallet2">Wallet 2</option>
               <option value="wallet3">Wallet 3</option>
             </select>
+            <button id="connectBtn" type="button">Connect</button>
           </div>
+
+          <div class="kv"><strong>Current wallet:</strong> <span id="connectedWalletOutput">None</span></div>
         </section>
 
         <section class="section">
@@ -523,7 +526,7 @@
               data-tip="Current wallet summary. Example values: address 0x..., NFT count 2, recent IDs #3 and #4.">?</span>
           </h3>
 
-          <div class="kv"><strong>Connected:</strong> <span id="connectedAddressOutput" class="mono">-</span> <button
+      <div class="kv"><strong>Connected address:</strong> <span id="connectedAddressOutput" class="mono">None</span> <button
               id="copyConnectedBtn" type="button" class="mini-btn">Copy</button></div>
           <div class="kv"><strong>My NFT count:</strong> <span id="myBalanceOutput">-</span></div>
           <div class="kv"><strong>My token IDs:</strong> <span id="myOwnedTokenIdsOutput">-</span></div>
@@ -541,7 +544,7 @@
           <h3>
             Owner Check
             <span class="help-tip" tabindex="0"
-              data-tip="Compares token owner vs selected wallet. Example result: 'Owned by current wallet' for #1, or 'Not owned' for #0.">?</span>
+              data-tip="Compares token owner vs connected wallet. Example result: 'Owned by current wallet' for #1, or 'Not owned' for #0.">?</span>
           </h3>
 
           <div class="kv">
