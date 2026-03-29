@@ -12,6 +12,8 @@ const statusEl = getRequiredElement("status");
 const mintBtn = getRequiredElement("mintBtn");
 const viewBtn = getRequiredElement("viewBtn");
 const connectBtn = getRequiredElement("connectBtn");
+const resetUiBtn = getRequiredElement("resetUiBtn");
+const hardResetBtn = getRequiredElement("hardResetBtn");
 const rpcUrlInput = getRequiredElement("rpcUrlInput");
 const walletSelect = getRequiredElement("walletSelect");
 const tokenIdInput = getRequiredElement("tokenIdInput");
@@ -33,6 +35,8 @@ const masterWalletList = getRequiredElement("masterWalletList");
 const copyConnectedBtn = getRequiredElement("copyConnectedBtn");
 const copyOwnerBtn = getRequiredElement("copyOwnerBtn");
 const copyTxBtn = getRequiredElement("copyTxBtn");
+
+const CONTRACT_OVERRIDE_STORAGE_KEY = "cs521.contract.override";
 
 let provider;
 let signer;
@@ -111,6 +115,55 @@ function setButtonLoading(button, isLoading, loadingText) {
   button.textContent = isLoading ? loadingText : button.dataset.originalText;
 }
 
+function readContractOverride() {
+  try {
+    const raw = localStorage.getItem(CONTRACT_OVERRIDE_STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.address || !ethers.isAddress(parsed.address)) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function persistContractOverride(address, chainId, network) {
+  try {
+    localStorage.setItem(
+      CONTRACT_OVERRIDE_STORAGE_KEY,
+      JSON.stringify({ address, chainId, network, updatedAt: Date.now() })
+    );
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+async function deployContractForCurrentDemoWallet(rpcUrl, selectedWallet) {
+  if (!contractInfo?.bytecode || typeof contractInfo.bytecode !== "string" || !contractInfo.bytecode.startsWith("0x")) {
+    throw new Error("contract-info.json is missing bytecode. Run one terminal deploy to refresh it.");
+  }
+
+  const deployProvider = new ethers.JsonRpcProvider(rpcUrl);
+  const deploySigner = new ethers.Wallet(selectedWallet.privateKey, deployProvider);
+  const factory = new ethers.ContractFactory(contractInfo.abi, contractInfo.bytecode, deploySigner);
+  const deployedContract = await factory.deploy();
+  await deployedContract.waitForDeployment();
+
+  const newAddress = await deployedContract.getAddress();
+  const network = await deployProvider.getNetwork();
+
+  contractInfo.address = newAddress;
+  contractInfo.chainId = Number(network.chainId);
+  contractInfo.network = contractInfo.network || "localhost";
+  persistContractOverride(newAddress, contractInfo.chainId, contractInfo.network);
+
+  return newAddress;
+}
+
 function updateConnectionUi() {
   const isConnected = Boolean(contract && connectedAddress);
   mintBtn.disabled = !isConnected;
@@ -118,6 +171,91 @@ function updateConnectionUi() {
   connectedWalletOutput.textContent = connectedWalletLabel || "None";
   connectedAddressOutput.textContent = connectedAddress || "None";
   copyConnectedBtn.disabled = !isConnected;
+}
+
+function resetUiState(options = {}) {
+  const {
+    statusMessage = "🔄 UI reset complete. Select a wallet and click Connect to continue.",
+    ownershipMessage = "UI reset complete. Connect wallet and view a token to compare owner.",
+  } = options;
+
+  provider = undefined;
+  signer = undefined;
+  contract = undefined;
+  connectedAddress = null;
+  connectedWalletLabel = null;
+
+  walletMintHistory.clear();
+  ownershipRegistry = new Map();
+
+  ownerOutput.textContent = "-";
+  metadataOutput.textContent = "-";
+  nftImage.removeAttribute("src");
+  myBalanceOutput.textContent = "-";
+  myOwnedTokenIdsOutput.textContent = "-";
+  lastMintTokenOutput.textContent = "-";
+  lastMintTxOutput.textContent = "-";
+  tokenIdInput.value = "0";
+
+  setOwnershipStatus("unknown", ownershipMessage);
+
+  updateConnectionUi();
+  renderRecentMintedIds();
+  renderMasterWalletView();
+  setStatus(statusMessage);
+}
+
+async function hardResetChain() {
+  const rpcUrl = rpcUrlInput.value.trim();
+  const selectedWallet = SAMPLE_LOCAL_WALLETS[walletSelect.value];
+  if (!rpcUrl) {
+    setStatus("Enter an RPC URL before running Hard Reset Chain.");
+    return;
+  }
+
+  if (!selectedWallet || !isValidPrivateKey(selectedWallet.privateKey)) {
+    setStatus("Select a valid wallet before running Hard Reset Chain.");
+    return;
+  }
+
+  const approved = window.confirm(
+    "Hard reset will erase ALL local on-chain data on your Hardhat node. Continue?"
+  );
+  if (!approved) {
+    setStatus("Hard reset canceled.");
+    return;
+  }
+
+  try {
+    setLoader(true, "Hard resetting local chain...");
+    setButtonLoading(hardResetBtn, true, "Resetting...");
+
+    const resetProvider = new ethers.JsonRpcProvider(rpcUrl);
+    await resetProvider.send("hardhat_reset", []);
+
+    resetUiState({
+      statusMessage: "🧨 Chain reset complete. Redeploying contract in-app...",
+      ownershipMessage: "Chain reset complete. Redeploying demo contract now.",
+    });
+
+    const newAddress = await deployContractForCurrentDemoWallet(rpcUrl, selectedWallet);
+
+    setStatus(
+      `✅ Hard reset + auto redeploy complete.\n` +
+      `New contract: ${newAddress}\n` +
+      `Reconnecting ${selectedWallet.label}...`
+    );
+
+    await connectSampleWallet();
+  } catch (err) {
+    setStatus(
+      `Hard reset failed: ${err.message}\n` +
+      "Tip: this works on Hardhat localhost JSON-RPC. Ensure node is running and RPC URL is correct."
+    );
+  } finally {
+    setLoader(false);
+    setButtonLoading(hardResetBtn, false, "Resetting...");
+  }
 }
 
 async function refreshWalletStats() {
@@ -253,6 +391,17 @@ async function loadContractInfo() {
     throw new Error("contract-info.json is missing ABI. Re-run deploy.");
   }
 
+  const override = readContractOverride();
+  if (override) {
+    info.address = override.address;
+    if (typeof override.chainId === "number") {
+      info.chainId = override.chainId;
+    }
+    if (typeof override.network === "string" && override.network.length > 0) {
+      info.network = override.network;
+    }
+  }
+
   return info;
 }
 
@@ -276,6 +425,12 @@ async function connectSampleWallet() {
 
     provider = new ethers.JsonRpcProvider(rpcUrl);
     await provider.getBlockNumber();
+
+    const codeAtAddress = await provider.getCode(contractInfo.address);
+    if (codeAtAddress === "0x") {
+      throw new Error("No deployed contract found at configured address. Run 'npm run deploy:local' first.");
+    }
+
     signer = new ethers.Wallet(selectedWallet.privateKey, provider);
     contract = new ethers.Contract(contractInfo.address, contractInfo.abi, signer);
 
@@ -446,6 +601,13 @@ async function init() {
 
 function bindEvents() {
   connectBtn.addEventListener("click", connectSampleWallet);
+  resetUiBtn.addEventListener("click", () => {
+    resetUiState({
+      statusMessage: "🔄 UI reset complete. On-chain NFTs are unchanged.",
+      ownershipMessage: "UI reset complete. Connect wallet and view a token to compare owner.",
+    });
+  });
+  hardResetBtn.addEventListener("click", hardResetChain);
   mintBtn.addEventListener("click", mintNft);
   viewBtn.addEventListener("click", viewToken);
   copyConnectedBtn.addEventListener("click", () => copyText(connectedAddressOutput.textContent, "Connected wallet address copied."));

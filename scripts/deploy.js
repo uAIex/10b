@@ -33,6 +33,7 @@ async function main() {
     chainId: Number(network.chainId),
     address,
     abi: artifact.abi,
+    bytecode: artifact.bytecode,
   };
 
   const outputPath = path.join(__dirname, "..", "frontend", "contract-info.json");

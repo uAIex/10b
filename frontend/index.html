@@ -55,6 +55,22 @@
       flex-wrap: wrap;
     }
 
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 0.45rem;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
     .helper {
       margin: 0;
       color: var(--muted);
@@ -208,6 +224,12 @@
 
     .mini-btn {
       background: var(--accent-2);
+      font-size: 0.8rem;
+      padding: 0.3rem 0.52rem;
+    }
+
+    .danger-btn {
+      background: #b91c1c;
       font-size: 0.8rem;
       padding: 0.3rem 0.52rem;
     }
@@ -424,11 +446,18 @@
 
 <body>
   <main class="container">
-    <h1>
-      🏀 CS 521 NBA Legends NFT Demo
-      <span class="help-tip" tabindex="0"
-        data-tip="This page lets you create NFTs on a local test blockchain and inspect ownership + metadata. Example flow: choose Wallet 1, mint once, then view token ID 0.">?</span>
-    </h1>
+    <div class="top-bar">
+      <h1>
+        🏀 CS 521 NBA Legends NFT Demo
+        <span class="help-tip" tabindex="0"
+          data-tip="This page lets you create NFTs on a local test blockchain and inspect ownership + metadata. Example flow: choose Wallet 1, mint once, then view token ID 0.">?</span>
+      </h1>
+
+      <div class="top-actions">
+        <button id="resetUiBtn" type="button" class="mini-btn">Reset UI</button>
+        <button id="hardResetBtn" type="button" class="danger-btn">Hard Reset Chain</button>
+      </div>
+    </div>
 
     <p class="helper">Quick flow: <strong>Connect → Mint → View</strong>. Use <strong>?</strong> for extra details.</p>
 
@@ -527,7 +556,8 @@
           </h3>
 
           <div class="kv"><strong>Connected address:</strong> <span id="connectedAddressOutput" class="mono">None</span>
-            <button id="copyConnectedBtn" type="button" class="mini-btn">Copy</button></div>
+            <button id="copyConnectedBtn" type="button" class="mini-btn">Copy</button>
+          </div>
           <div class="kv"><strong>My NFT count:</strong> <span id="myBalanceOutput">-</span></div>
           <div class="kv"><strong>My token IDs:</strong> <span id="myOwnedTokenIdsOutput">-</span></div>
           <div class="kv"><strong>Last minted ID:</strong> <span id="lastMintTokenOutput">-</span></div>
