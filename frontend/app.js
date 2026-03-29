@@ -1,0 +1,451 @@
+import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.13.2/+esm";
+
+function getRequiredElement(id) {
+  const el = document.getElementById(id);
+  if (!el) {
+    throw new Error(`Missing required UI element: #${id}`);
+  }
+  return el;
+}
+
+const statusEl = getRequiredElement("status");
+const mintBtn = getRequiredElement("mintBtn");
+const viewBtn = getRequiredElement("viewBtn");
+const rpcUrlInput = getRequiredElement("rpcUrlInput");
+const walletSelect = getRequiredElement("walletSelect");
+const tokenIdInput = getRequiredElement("tokenIdInput");
+const ownerOutput = getRequiredElement("ownerOutput");
+const metadataOutput = getRequiredElement("metadataOutput");
+const nftImage = getRequiredElement("nftImage");
+const ownershipStatusOutput = getRequiredElement("ownershipStatusOutput");
+const ownershipExplainOutput = getRequiredElement("ownershipExplainOutput");
+const loaderEl = getRequiredElement("loader");
+const loaderTextEl = getRequiredElement("loaderText");
+const connectedAddressOutput = getRequiredElement("connectedAddressOutput");
+const myBalanceOutput = getRequiredElement("myBalanceOutput");
+const lastMintTokenOutput = getRequiredElement("lastMintTokenOutput");
+const lastMintTxOutput = getRequiredElement("lastMintTxOutput");
+const myOwnedTokenIdsOutput = getRequiredElement("myOwnedTokenIdsOutput");
+const recentMintedList = getRequiredElement("recentMintedList");
+const masterWalletList = getRequiredElement("masterWalletList");
+const copyConnectedBtn = getRequiredElement("copyConnectedBtn");
+const copyOwnerBtn = getRequiredElement("copyOwnerBtn");
+const copyTxBtn = getRequiredElement("copyTxBtn");
+
+let provider;
+let signer;
+let contract;
+let contractInfo;
+let connectedAddress = null;
+const walletMintHistory = new Map();
+let ownershipRegistry = new Map();
+
+const SAMPLE_LOCAL_WALLETS = {
+  wallet1: {
+    label: "Wallet 1",
+    privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+  },
+  wallet2: {
+    label: "Wallet 2",
+    privateKey: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+  },
+  wallet3: {
+    label: "Wallet 3",
+    privateKey: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+  },
+};
+
+function setStatus(message) {
+  statusEl.textContent = message;
+}
+
+function setOwnershipStatus(mode, explainText) {
+  ownershipStatusOutput.classList.remove("owned", "not-owned", "unknown");
+
+  if (mode === "owned") {
+    ownershipStatusOutput.classList.add("owned");
+    ownershipStatusOutput.textContent = "Owned by current wallet";
+  } else if (mode === "not-owned") {
+    ownershipStatusOutput.classList.add("not-owned");
+    ownershipStatusOutput.textContent = "Not owned by current wallet";
+  } else {
+    ownershipStatusOutput.classList.add("unknown");
+    ownershipStatusOutput.textContent = "No token viewed yet";
+  }
+
+  ownershipExplainOutput.textContent = explainText;
+}
+
+function isValidPrivateKey(value) {
+  return /^0x[0-9a-fA-F]{64}$/.test(value);
+}
+
+async function copyText(text, successMessage) {
+  if (!text || text === "-") {
+    setStatus("Nothing to copy yet.");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus(successMessage);
+  } catch (err) {
+    setStatus(`Copy failed: ${err.message}`);
+  }
+}
+
+function setLoader(visible, message = "Working...") {
+  loaderEl.classList.toggle("hidden", !visible);
+  loaderTextEl.textContent = message;
+}
+
+function setButtonLoading(button, isLoading, loadingText) {
+  if (!button.dataset.originalText) {
+    button.dataset.originalText = button.textContent;
+  }
+
+  button.disabled = isLoading;
+  button.textContent = isLoading ? loadingText : button.dataset.originalText;
+}
+
+async function refreshWalletStats() {
+  if (!contract || !connectedAddress) {
+    myBalanceOutput.textContent = "-";
+    myOwnedTokenIdsOutput.textContent = "-";
+    return;
+  }
+
+  const count = await contract.balanceOf(connectedAddress);
+  myBalanceOutput.textContent = count.toString();
+
+  const ownedIds = ownershipRegistry.get(connectedAddress) || [];
+  myOwnedTokenIdsOutput.textContent = ownedIds.length > 0 ? ownedIds.map((id) => `#${id}`).join(", ") : "None";
+}
+
+function renderRecentMintedIds() {
+  recentMintedList.innerHTML = "";
+
+  const walletHistory = connectedAddress ? (walletMintHistory.get(connectedAddress) || []) : [];
+
+  if (walletHistory.length === 0) {
+    const li = document.createElement("li");
+    li.className = "helper";
+    li.style.margin = "0";
+    li.textContent = connectedAddress ? "No mints for this wallet yet." : "Connect a wallet first.";
+    recentMintedList.appendChild(li);
+    return;
+  }
+
+  walletHistory.forEach((id) => {
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = `#${id}`;
+    btn.addEventListener("click", () => {
+      tokenIdInput.value = id;
+      viewToken();
+    });
+    li.appendChild(btn);
+    recentMintedList.appendChild(li);
+  });
+}
+
+function renderMasterWalletView() {
+  masterWalletList.innerHTML = "";
+
+  if (ownershipRegistry.size === 0) {
+    const empty = document.createElement("li");
+    empty.className = "helper";
+    empty.style.margin = "0";
+    empty.textContent = "No minted NFTs yet.";
+    masterWalletList.appendChild(empty);
+    return;
+  }
+
+  const sortedEntries = Array.from(ownershipRegistry.entries()).sort((a, b) => b[1].length - a[1].length);
+
+  sortedEntries.forEach(([wallet, tokenIds]) => {
+    const li = document.createElement("li");
+
+    const walletLine = document.createElement("div");
+    walletLine.innerHTML = `<strong>${wallet}</strong> (${tokenIds.length} NFT${tokenIds.length === 1 ? "" : "s"})`;
+
+    const tokenLine = document.createElement("div");
+    if (tokenIds.length === 0) {
+      tokenLine.textContent = "No tokens";
+    } else {
+      tokenLine.innerHTML = tokenIds
+        .map((id) => `<span class="token-pill">#${id}</span>`)
+        .join("");
+    }
+
+    li.appendChild(walletLine);
+    li.appendChild(tokenLine);
+    masterWalletList.appendChild(li);
+  });
+}
+
+async function refreshOwnershipRegistry() {
+  if (!contract) {
+    ownershipRegistry = new Map();
+    renderMasterWalletView();
+    return;
+  }
+
+  const totalMinted = Number(await contract.totalMinted());
+  const registry = new Map();
+
+  for (let tokenId = 0; tokenId < totalMinted; tokenId += 1) {
+    try {
+      const owner = await contract.ownerOf(tokenId);
+      const existing = registry.get(owner) || [];
+      existing.push(tokenId.toString());
+      registry.set(owner, existing);
+    } catch {
+      // Ignore missing/burned token IDs.
+    }
+  }
+
+  ownershipRegistry = registry;
+  renderMasterWalletView();
+}
+
+function pushWalletMintHistory(wallet, tokenId) {
+  const existing = walletMintHistory.get(wallet) || [];
+  const next = [tokenId, ...existing.filter((id) => id !== tokenId)].slice(0, 8);
+  walletMintHistory.set(wallet, next);
+}
+
+function parseDataUriJson(uri) {
+  const prefix = "data:application/json;base64,";
+  if (!uri.startsWith(prefix)) {
+    throw new Error("Unexpected tokenURI format");
+  }
+
+  const encoded = uri.slice(prefix.length);
+  const decoded = atob(encoded);
+  return JSON.parse(decoded);
+}
+
+async function loadContractInfo() {
+  const res = await fetch("./contract-info.json", { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error("Missing contract-info.json. Deploy contract first.");
+  }
+
+  const info = await res.json();
+  if (!info.address || !ethers.isAddress(info.address)) {
+    throw new Error("contract-info.json has invalid contract address. Re-run deploy.");
+  }
+  if (!Array.isArray(info.abi) || info.abi.length === 0) {
+    throw new Error("contract-info.json is missing ABI. Re-run deploy.");
+  }
+
+  return info;
+}
+
+async function connectSampleWallet() {
+  const rpcUrl = rpcUrlInput.value.trim();
+  const selectedWallet = SAMPLE_LOCAL_WALLETS[walletSelect.value];
+
+  if (!rpcUrl) {
+    setStatus("Enter an RPC URL (e.g., http://127.0.0.1:8545).");
+    return;
+  }
+
+  if (!selectedWallet || !isValidPrivateKey(selectedWallet.privateKey)) {
+    setStatus("Selected wallet is invalid. Choose Wallet 1, Wallet 2, or Wallet 3.");
+    return;
+  }
+
+  try {
+    setLoader(true, "Connecting wallet...");
+    setStatus(`Connecting ${selectedWallet.label}...`);
+
+    provider = new ethers.JsonRpcProvider(rpcUrl);
+    await provider.getBlockNumber();
+    signer = new ethers.Wallet(selectedWallet.privateKey, provider);
+    contract = new ethers.Contract(contractInfo.address, contractInfo.abi, signer);
+
+    const network = await provider.getNetwork();
+    connectedAddress = await signer.getAddress();
+
+    mintBtn.disabled = false;
+    viewBtn.disabled = false;
+    connectedAddressOutput.textContent = connectedAddress;
+    await refreshOwnershipRegistry();
+    await refreshWalletStats();
+    renderRecentMintedIds();
+
+    setOwnershipStatus(
+      "unknown",
+      "ERC-721 allows any wallet to view any token ID. Use View NFT to check whether the selected token is owned by this wallet."
+    );
+
+    setStatus(
+      `✅ ${selectedWallet.label} connected: ${connectedAddress}\n` +
+      `RPC chainId: ${Number(network.chainId)}\n` +
+      `Contract chainId: ${contractInfo.chainId} (${contractInfo.network})\n` +
+      `Next: click 'Mint NFT' in Step 2.`
+    );
+  } catch (err) {
+    setStatus(
+      `Local wallet connect failed: ${err.message}\n` +
+      `Tip: make sure 'npm run node' is running and RPC URL is http://127.0.0.1:8545.`
+    );
+  } finally {
+    setLoader(false);
+  }
+}
+
+async function mintNft() {
+  if (!contract) {
+    setStatus("Connect wallet first.");
+    return;
+  }
+
+  try {
+    setLoader(true, "Minting NFT on blockchain... (this may take a few seconds)");
+    setButtonLoading(mintBtn, true, "Minting...");
+    setStatus("Minting NFT...");
+
+    const tx = await contract.mint();
+    const receipt = await tx.wait();
+
+    const transferLog = receipt.logs
+      .map((log) => {
+        try {
+          return contract.interface.parseLog(log);
+        } catch {
+          return null;
+        }
+      })
+      .find((log) => log && log.name === "Transfer");
+
+    const mintedTokenId = transferLog ? transferLog.args.tokenId.toString() : null;
+
+    if (mintedTokenId !== null) {
+      tokenIdInput.value = mintedTokenId;
+      lastMintTokenOutput.textContent = mintedTokenId;
+      if (connectedAddress) {
+        pushWalletMintHistory(connectedAddress, mintedTokenId);
+      }
+      await refreshOwnershipRegistry();
+      await refreshWalletStats();
+      renderRecentMintedIds();
+    }
+
+    lastMintTxOutput.textContent = receipt.hash;
+
+    setStatus(
+      `✅ Mint successful.\n` +
+      `${mintedTokenId !== null ? `New Token ID: ${mintedTokenId}\n` : ""}` +
+      `Tx hash: ${receipt.hash}\n` +
+      `Next: click 'View NFT' in Step 3.`
+    );
+  } catch (err) {
+    setStatus(`Mint failed: ${err.message}`);
+  } finally {
+    setLoader(false);
+    setButtonLoading(mintBtn, false, "Minting...");
+  }
+}
+
+async function viewToken() {
+  if (!contract) {
+    setStatus("Connect wallet first.");
+    return;
+  }
+
+  const tokenId = tokenIdInput.value;
+  if (tokenId === "") {
+    setStatus("Enter a token ID.");
+    return;
+  }
+
+  try {
+    setLoader(true, `Loading token #${tokenId}...`);
+    setButtonLoading(viewBtn, true, "Loading...");
+    setStatus(`Loading token #${tokenId}...`);
+
+    const [owner, tokenUri] = await Promise.all([
+      contract.ownerOf(tokenId),
+      contract.tokenURI(tokenId),
+    ]);
+
+    const metadata = parseDataUriJson(tokenUri);
+    const ownerLower = owner.toLowerCase();
+    const connectedLower = connectedAddress ? connectedAddress.toLowerCase() : "";
+    const isOwnedByCurrentWallet = Boolean(connectedLower) && ownerLower === connectedLower;
+
+    ownerOutput.textContent = owner;
+    metadataOutput.textContent = JSON.stringify(metadata, null, 2);
+    nftImage.src = metadata.image;
+    setOwnershipStatus(
+      isOwnedByCurrentWallet ? "owned" : "not-owned",
+      isOwnedByCurrentWallet
+        ? `Token #${tokenId} is owned by your connected wallet.`
+        : `Token #${tokenId} is valid and viewable by anyone, but ownership belongs to a different wallet.`
+    );
+    setStatus(`✅ Loaded token #${tokenId}. You can now inspect owner, metadata, and image.`);
+  } catch (err) {
+    ownerOutput.textContent = "-";
+    metadataOutput.textContent = "-";
+    nftImage.removeAttribute("src");
+    setOwnershipStatus("unknown", "Could not load this token. Check token ID and try again.");
+    const message = String(err?.message || "");
+    if (message.toLowerCase().includes("token does not exist") || message.toLowerCase().includes("reverted")) {
+      setStatus(`View failed: token #${tokenId} does not exist yet. Mint a new token first, then try again.`);
+    } else {
+      setStatus(`View failed: ${message}`);
+    }
+  } finally {
+    setLoader(false);
+    setButtonLoading(viewBtn, false, "Loading...");
+  }
+}
+
+async function init() {
+  try {
+    contractInfo = await loadContractInfo();
+
+    if (!contractInfo.address || contractInfo.address === ethers.ZeroAddress) {
+      setStatus("Contract not deployed yet. Run deployment script first.");
+      return;
+    }
+
+    setStatus(
+      `Contract loaded: ${contractInfo.address}\n` +
+      `Network: ${contractInfo.network} (chainId ${contractInfo.chainId})\n` +
+      `Choose Wallet 1-3 in Step 1. It connects automatically.`
+    );
+
+    setOwnershipStatus(
+      "unknown",
+      "ERC-721 token IDs are global. Anyone can view metadata for existing IDs; ownership is tracked separately by wallet address."
+    );
+
+    renderMasterWalletView();
+    renderRecentMintedIds();
+    await connectSampleWallet();
+  } catch (err) {
+    setStatus(`Initialization failed: ${err.message}`);
+  }
+}
+
+function bindEvents() {
+  walletSelect.addEventListener("change", connectSampleWallet);
+  mintBtn.addEventListener("click", mintNft);
+  viewBtn.addEventListener("click", viewToken);
+  copyConnectedBtn.addEventListener("click", () => copyText(connectedAddressOutput.textContent, "Connected wallet address copied."));
+  copyOwnerBtn.addEventListener("click", () => copyText(ownerOutput.textContent, "Owner address copied."));
+  copyTxBtn.addEventListener("click", () => copyText(lastMintTxOutput.textContent, "Last mint tx hash copied."));
+}
+
+try {
+  bindEvents();
+  init();
+} catch (err) {
+  console.error(err);
+  setStatus(`Startup error: ${err.message}`);
+}

@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS 521 NBA Legends NFT Demo</title>
+  <style>
+    :root {
+      --bg: #fff7ed;
+      --card: #ffffff;
+      --accent: #ea580c;
+      --accent-2: #1d4ed8;
+      --text: #111827;
+      --muted: #4b5563;
+      --line: #fed7aa;
+      --line-blue: #c7d2fe;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      font-family: Arial, sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%);
+    }
+
+    body {
+      padding: 12px;
+    }
+
+    .container {
+      max-width: 1160px;
+      margin: 0 auto;
+      background: var(--card);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.35rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .helper {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.25;
+    }
+
+    .status {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 0.55rem 0.65rem;
+      font-size: 0.86rem;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      min-height: 72px;
+      max-height: 72px;
+      overflow: auto;
+    }
+
+    .console-panel {
+      border: 1px solid #1e293b;
+      background: #020617;
+      border-radius: 10px;
+      padding: 0.5rem;
+    }
+
+    .console-title {
+      margin: 0 0 0.35rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #93c5fd;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    .loader {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #e0f2fe;
+      border: 1px solid #7dd3fc;
+      color: #0c4a6e;
+      border-radius: 8px;
+      padding: 0.45rem 0.65rem;
+      font-size: 0.86rem;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #bae6fd;
+      border-top-color: #0284c7;
+      border-radius: 999px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+
+    .left-col,
+    .right-col {
+      min-width: 0;
+    }
+
+    .section,
+    .result-panel {
+      border-radius: 10px;
+      padding: 0.72rem;
+    }
+
+    .section {
+      border: 1px solid var(--line);
+      background: #fffbeb;
+      margin-bottom: 10px;
+    }
+
+    .result-panel {
+      border: 1px solid var(--line-blue);
+      background: #eef2ff;
+      margin-bottom: 10px;
+    }
+
+    h3 {
+      margin: 0 0 0.45rem;
+      font-size: 0.98rem;
+      color: #9a3412;
+      display: flex;
+      align-items: center;
+      gap: 0.28rem;
+      flex-wrap: wrap;
+    }
+
+    .result-panel h3 {
+      color: #312e81;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      margin-bottom: 0.55rem;
+    }
+
+    .kv {
+      margin-bottom: 0.42rem;
+      font-size: 0.86rem;
+    }
+
+    input,
+    select,
+    button {
+      font-size: 0.9rem;
+      padding: 0.44rem 0.62rem;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+    }
+
+    input,
+    select {
+      min-width: 120px;
+    }
+
+    button {
+      border: none;
+      cursor: pointer;
+      color: white;
+      background: var(--accent);
+    }
+
+    .mini-btn {
+      background: var(--accent-2);
+      font-size: 0.8rem;
+      padding: 0.3rem 0.52rem;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      word-break: break-all;
+    }
+
+    .recent-list,
+    .wallet-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .recent-list {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .recent-list button {
+      background: #4338ca;
+      font-size: 0.82rem;
+      padding: 0.26rem 0.52rem;
+    }
+
+    .wallet-list {
+      display: grid;
+      gap: 0.5rem;
+      margin-top: 0.4rem;
+    }
+
+    .wallet-list li {
+      background: #e0e7ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 8px;
+      padding: 0.44rem 0.5rem;
+      font-size: 0.84rem;
+    }
+
+    .token-pill {
+      display: inline-block;
+      background: #312e81;
+      color: #fff;
+      border-radius: 999px;
+      padding: 0.08rem 0.42rem;
+      margin: 0.1rem;
+      font-size: 0.74rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    .ownership-badge {
+      display: inline-block;
+      padding: 0.14rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+      margin-left: 0.25rem;
+    }
+
+    .ownership-badge.owned {
+      background: #dcfce7;
+      color: #166534;
+      border-color: #86efac;
+    }
+
+    .ownership-badge.not-owned {
+      background: #fee2e2;
+      color: #991b1b;
+      border-color: #fca5a5;
+    }
+
+    .ownership-badge.unknown {
+      background: #e5e7eb;
+      color: #374151;
+      border-color: #d1d5db;
+    }
+
+    .help-tip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid #fdba74;
+      background: #fff7ed;
+      color: #9a3412;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: help;
+      position: relative;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .help-tip::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 8px);
+      transform: translateX(-50%);
+      width: min(280px, 70vw);
+      padding: 0.48rem 0.56rem;
+      border-radius: 8px;
+      border: 1px solid #fdba74;
+      background: #fff7ed;
+      color: #7c2d12;
+      font-size: 0.79rem;
+      font-weight: 500;
+      line-height: 1.28;
+      white-space: normal;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+      z-index: 40;
+    }
+
+    .help-tip:hover::after,
+    .help-tip:focus::after {
+      opacity: 1;
+    }
+
+    img {
+      width: min(72%, 230px);
+      height: auto;
+      border-radius: 10px;
+      border: 1px solid #e5e7eb;
+      background: #f8fafc;
+      display: block;
+      margin: 0 auto;
+    }
+
+    pre {
+      margin: 0;
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 10px;
+      padding: 0.65rem;
+      font-size: 0.78rem;
+      line-height: 1.25;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .right-footnote {
+      margin: 0;
+      font-size: 0.82rem;
+      color: #4b5563;
+    }
+
+    .preview-stack {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .metadata-block {
+      margin-top: 0.35rem;
+    }
+
+    .metadata-block h4 {
+      margin: 0 0 0.25rem;
+      font-size: 0.84rem;
+      color: #3730a3;
+    }
+
+    .metadata-block pre {
+      max-height: 200px;
+      overflow: auto;
+    }
+
+    .master-tool {
+      margin-top: 0.25rem;
+    }
+
+    @media (max-width: 980px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+
+      body {
+        padding: 8px;
+      }
+
+      .container {
+        padding: 10px;
+      }
+
+      .row {
+        gap: 0.45rem;
+      }
+
+      input,
+      button {
+        width: 100%;
+      }
+
+      .row .mini-btn {
+        width: auto;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <h1>
+      🏀 CS 521 NBA Legends NFT Demo
+      <span class="help-tip" tabindex="0"
+        data-tip="This page lets you create NFTs on a local test blockchain and inspect ownership + metadata. Example flow: choose Wallet 1, mint once, then view token ID 0.">?</span>
+    </h1>
+
+    <p class="helper">Quick flow: <strong>Connect → Mint → View</strong>. Use <strong>?</strong> for extra details.</p>
+
+    <div class="console-panel">
+      <div class="console-title">Console</div>
+      <div class="status" id="status">Loading...</div>
+
+      <div class="loader hidden" id="loader">
+        <span class="spinner" aria-hidden="true"></span>
+        <span id="loaderText">Working...</span>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <div class="left-col">
+        <section class="section">
+          <h3>
+            Step 1) Connect Wallet
+            <span class="help-tip" tabindex="0"
+              data-tip="A wallet is your blockchain account. Example: pick Wallet 2 to mint as a different user than Wallet 1.">?</span>
+          </h3>
+
+          <p class="helper">Pick Wallet 1, Wallet 2, or Wallet 3. No manual private key entry needed.</p>
+
+          <div class="row">
+            <label for="rpcUrlInput">RPC URL</label>
+            <span class="help-tip" tabindex="0"
+              data-tip="RPC URL is where the app sends blockchain requests. For this project, use local Hardhat: http://127.0.0.1:8545.">?</span>
+            <input id="rpcUrlInput" type="text" value="http://127.0.0.1:8545" style="flex: 1; min-width: 180px;" />
+          </div>
+
+          <div class="row">
+            <label for="walletSelect">Sample Wallet</label>
+            <span class="help-tip" tabindex="0"
+              data-tip="Built-in local test accounts. Example: mint token 0 with Wallet 1, then switch to Wallet 2 to see it marked as not owned.">?</span>
+            <select id="walletSelect" style="flex: 1; min-width: 220px;">
+              <option value="wallet1">Wallet 1</option>
+              <option value="wallet2">Wallet 2</option>
+              <option value="wallet3">Wallet 3</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="section">
+          <h3>
+            Step 2) Mint NFT
+            <span class="help-tip" tabindex="0"
+              data-tip="Mint = create a new NFT on-chain. Example: first mint creates token ID 0, next mint creates token ID 1.">?</span>
+          </h3>
+
+          <p class="helper">Creates one NFT for the connected wallet.</p>
+
+          <div class="row">
+            <button id="mintBtn" type="button" disabled>Mint NFT</button>
+          </div>
+        </section>
+
+        <section class="section">
+          <h3>
+            Step 3) View by Token ID
+            <span class="help-tip" tabindex="0"
+              data-tip="Enter a token number to load details. Example: type 0 to see owner, metadata JSON, and image for token 0.">?</span>
+          </h3>
+
+          <p class="helper">View owner, metadata, and image for any token ID.</p>
+
+          <div class="row">
+            <label for="tokenIdInput">Token ID</label>
+            <input id="tokenIdInput" type="number" min="0" value="0" />
+            <button id="viewBtn" type="button" disabled>View NFT</button>
+          </div>
+        </section>
+
+        <section class="section master-tool">
+          <h3>
+            Master Wallet View
+            <span class="help-tip" tabindex="0"
+              data-tip="Full ownership table. Example: Wallet A owns #0 and #2, Wallet B owns #1.">?</span>
+          </h3>
+
+          <ul id="masterWalletList" class="wallet-list">
+            <li class="helper">No minted NFTs yet.</li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="right-col">
+        <section class="result-panel">
+          <h3>
+            Wallet
+            <span class="help-tip" tabindex="0"
+              data-tip="Current wallet summary. Example values: address 0x..., NFT count 2, recent IDs #3 and #4.">?</span>
+          </h3>
+
+          <div class="kv"><strong>Connected:</strong> <span id="connectedAddressOutput" class="mono">-</span> <button
+              id="copyConnectedBtn" type="button" class="mini-btn">Copy</button></div>
+          <div class="kv"><strong>My NFT count:</strong> <span id="myBalanceOutput">-</span></div>
+          <div class="kv"><strong>My token IDs:</strong> <span id="myOwnedTokenIdsOutput">-</span></div>
+          <div class="kv"><strong>Last minted ID:</strong> <span id="lastMintTokenOutput">-</span></div>
+          <div class="kv"><strong>Last tx hash:</strong> <span id="lastMintTxOutput" class="mono">-</span> <button
+              id="copyTxBtn" type="button" class="mini-btn">Copy</button></div>
+
+          <div class="kv"><strong>Recent IDs:</strong></div>
+          <ul id="recentMintedList" class="recent-list">
+            <li class="helper">No mints yet.</li>
+          </ul>
+        </section>
+
+        <section class="result-panel">
+          <h3>
+            Owner Check
+            <span class="help-tip" tabindex="0"
+              data-tip="Compares token owner vs selected wallet. Example result: 'Owned by current wallet' for #1, or 'Not owned' for #0.">?</span>
+          </h3>
+
+          <div class="kv">
+            <strong>Ownership status:</strong>
+            <span id="ownershipStatusOutput" class="ownership-badge unknown">No token viewed yet</span>
+          </div>
+          <div id="ownershipExplainOutput" class="helper">Connect wallet and view a token to compare owner.</div>
+
+          <div id="ownerOutput" class="mono">-</div>
+          <button id="copyOwnerBtn" type="button" class="mini-btn" style="margin-top: 0.45rem;">Copy Owner</button>
+        </section>
+
+        <section class="result-panel">
+          <h3>
+            NFT Preview
+            <span class="help-tip" tabindex="0"
+              data-tip="Shows image + metadata JSON. Example fields: name, description, image URL.">?</span>
+          </h3>
+
+          <div class="preview-stack">
+            <img id="nftImage" alt="NFT image will appear here" />
+
+            <div class="metadata-block">
+              <h4>Metadata JSON</h4>
+              <pre id="metadataOutput">-</pre>
+            </div>
+          </div>
+        </section>
+
+        <p class="right-footnote">Tip: switch between Wallet 1-3 to demo different owners.</p>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+
+</html>
