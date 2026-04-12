@@ -78,6 +78,34 @@
       line-height: 1.25;
     }
 
+    .mode-tabs {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.2rem;
+    }
+
+    .mode-tab {
+      background: #e2e8f0;
+      color: #0f172a;
+      border: 1px solid #cbd5e1;
+      font-weight: 700;
+    }
+
+    .mode-tab.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: #c2410c;
+    }
+
+    .mode-panel {
+      display: none;
+    }
+
+    .mode-panel.active {
+      display: block;
+    }
+
     .status {
       background: #0f172a;
       border: 1px solid #334155;
@@ -415,6 +443,54 @@
       margin-top: 0.25rem;
     }
 
+    .trade-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+
+    .trade-console {
+      background: #0f172a;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 0.72rem;
+    }
+
+    .trade-console h3 {
+      color: #93c5fd;
+    }
+
+    .trade-console pre {
+      max-height: 250px;
+      background: #020617;
+      border: 1px solid #1e293b;
+    }
+
+    .trade-preview-card {
+      margin-top: 0.55rem;
+      border: 1px solid #fde68a;
+      background: #fffbeb;
+      border-radius: 10px;
+      padding: 0.5rem;
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .trade-preview-card img {
+      width: min(100%, 210px);
+      margin: 0 auto;
+    }
+
+    .trade-preview-title {
+      font-size: 0.83rem;
+      font-weight: 700;
+      color: #7c2d12;
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+
     @media (max-width: 980px) {
       .main-grid {
         grid-template-columns: 1fr;
@@ -440,6 +516,10 @@
       .row .mini-btn {
         width: auto;
       }
+
+      .trade-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -459,7 +539,13 @@
       </div>
     </div>
 
-    <p class="helper">Quick flow: <strong>Connect → Mint → View</strong>. Use <strong>?</strong> for extra details.</p>
+    <p class="helper">Quick flow: <strong>Connect → Mint → View</strong>. Switch to <strong>Trade Mode</strong> to swap
+      cards between wallets.</p>
+
+    <div class="mode-tabs">
+      <button id="mintViewTabBtn" class="mode-tab active" type="button">Mint / View Mode</button>
+      <button id="tradeTabBtn" class="mode-tab" type="button">Trade Mode</button>
+    </div>
 
     <div class="console-panel">
       <div class="console-title">Console</div>
@@ -471,140 +557,221 @@
       </div>
     </div>
 
-    <div class="main-grid">
-      <div class="left-col">
+    <div id="mintViewMode" class="mode-panel active">
+      <div class="main-grid">
+        <div class="left-col">
+          <section class="section">
+            <h3>
+              Step 1) Connect Wallet
+              <span class="help-tip" tabindex="0"
+                data-tip="A wallet is your blockchain account. Example: pick Wallet 2 to mint as a different user than Wallet 1.">?</span>
+            </h3>
+
+            <p class="helper">Pick a wallet, then click Connect. No manual private key entry needed.</p>
+
+            <div class="row">
+              <label for="rpcUrlInput">RPC URL</label>
+              <span class="help-tip" tabindex="0"
+                data-tip="RPC URL is where the app sends blockchain requests. For this project, use local Hardhat: http://127.0.0.1:8545.">?</span>
+              <input id="rpcUrlInput" type="text" value="http://127.0.0.1:8545" style="flex: 1; min-width: 180px;" />
+            </div>
+
+            <div class="row">
+              <label for="walletSelect">Sample Wallet</label>
+              <span class="help-tip" tabindex="0"
+                data-tip="Built-in local test accounts. Example: mint token 0 with Wallet 1, then switch to Wallet 2 to see it marked as not owned.">?</span>
+              <select id="walletSelect" style="flex: 1; min-width: 220px;">
+                <option value="wallet1">Wallet 1</option>
+                <option value="wallet2">Wallet 2</option>
+                <option value="wallet3">Wallet 3</option>
+              </select>
+              <button id="connectBtn" type="button">Connect</button>
+            </div>
+
+            <div class="kv"><strong>Current wallet:</strong> <span id="connectedWalletOutput">None</span></div>
+          </section>
+
+          <section class="section">
+            <h3>
+              Step 2) Mint NFT
+              <span class="help-tip" tabindex="0"
+                data-tip="Mint = create a new NFT on-chain. Example: first mint creates token ID 0, next mint creates token ID 1.">?</span>
+            </h3>
+
+            <p class="helper">Creates one NFT for the connected wallet.</p>
+
+            <div class="row">
+              <button id="mintBtn" type="button" disabled>Mint NFT</button>
+            </div>
+          </section>
+
+          <section class="section">
+            <h3>
+              Step 3) View by Token ID
+              <span class="help-tip" tabindex="0"
+                data-tip="Enter a token number to load details. Example: type 0 to see owner, metadata JSON, and image for token 0.">?</span>
+            </h3>
+
+            <p class="helper">View owner, metadata, and image for any token ID.</p>
+
+            <div class="row">
+              <label for="tokenIdInput">Token ID</label>
+              <input id="tokenIdInput" type="number" min="0" value="0" />
+              <button id="viewBtn" type="button" disabled>View NFT</button>
+            </div>
+          </section>
+
+          <section class="section master-tool">
+            <h3>
+              Master Wallet View
+              <span class="help-tip" tabindex="0"
+                data-tip="Full ownership table. Example: Wallet A owns #0 and #2, Wallet B owns #1.">?</span>
+            </h3>
+
+            <ul id="masterWalletList" class="wallet-list">
+              <li class="helper">No minted NFTs yet.</li>
+            </ul>
+          </section>
+        </div>
+
+        <div class="right-col">
+          <section class="result-panel">
+            <h3>
+              Wallet
+              <span class="help-tip" tabindex="0"
+                data-tip="Current wallet summary. Example values: address 0x..., NFT count 2, recent IDs #3 and #4.">?</span>
+            </h3>
+
+            <div class="kv"><strong>Connected address:</strong> <span id="connectedAddressOutput"
+                class="mono">None</span>
+              <button id="copyConnectedBtn" type="button" class="mini-btn">Copy</button>
+            </div>
+            <div class="kv"><strong>My NFT count:</strong> <span id="myBalanceOutput">-</span></div>
+            <div class="kv"><strong>My token IDs:</strong> <span id="myOwnedTokenIdsOutput">-</span></div>
+            <div class="kv"><strong>Last minted ID:</strong> <span id="lastMintTokenOutput">-</span></div>
+            <div class="kv"><strong>Last tx hash:</strong> <span id="lastMintTxOutput" class="mono">-</span> <button
+                id="copyTxBtn" type="button" class="mini-btn">Copy</button></div>
+
+            <div class="kv"><strong>Recent IDs:</strong></div>
+            <ul id="recentMintedList" class="recent-list">
+              <li class="helper">No mints yet.</li>
+            </ul>
+          </section>
+
+          <section class="result-panel">
+            <h3>
+              Owner Check
+              <span class="help-tip" tabindex="0"
+                data-tip="Compares token owner vs connected wallet. Example result: 'Owned by current wallet' for #1, or 'Not owned' for #0.">?</span>
+            </h3>
+
+            <div class="kv">
+              <strong>Ownership status:</strong>
+              <span id="ownershipStatusOutput" class="ownership-badge unknown">No token viewed yet</span>
+            </div>
+            <div id="ownershipExplainOutput" class="helper">Connect wallet and view a token to compare owner.</div>
+
+            <div id="ownerOutput" class="mono">-</div>
+            <button id="copyOwnerBtn" type="button" class="mini-btn" style="margin-top: 0.45rem;">Copy Owner</button>
+          </section>
+
+          <section class="result-panel">
+            <h3>
+              NFT Preview
+              <span class="help-tip" tabindex="0"
+                data-tip="Shows image + metadata JSON. Example fields: name, description, image URL.">?</span>
+            </h3>
+
+            <div class="preview-stack">
+              <img id="nftImage" alt="NFT image will appear here" />
+
+              <div class="metadata-block">
+                <h4>Metadata JSON</h4>
+                <pre id="metadataOutput">-</pre>
+              </div>
+            </div>
+          </section>
+
+          <p class="right-footnote">Tip: switch between Wallet 1-3 to demo different owners.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="tradeMode" class="mode-panel">
+      <section class="section">
+        <h3>
+          Trade Mode (Wallet ↔ Wallet)
+          <span class="help-tip" tabindex="0"
+            data-tip="Pick one wallet + token on each side, then execute a card swap. This mode uses local demo wallets only.">?</span>
+        </h3>
+        <p class="helper">Simplest royalty policy for swaps: informational ERC-2981 preview only; enforce royalties on
+          priced sales.</p>
+      </section>
+
+      <div class="trade-grid">
         <section class="section">
-          <h3>
-            Step 1) Connect Wallet
-            <span class="help-tip" tabindex="0"
-              data-tip="A wallet is your blockchain account. Example: pick Wallet 2 to mint as a different user than Wallet 1.">?</span>
-          </h3>
-
-          <p class="helper">Pick a wallet, then click Connect. No manual private key entry needed.</p>
-
+          <h3>Left Wallet</h3>
           <div class="row">
-            <label for="rpcUrlInput">RPC URL</label>
-            <span class="help-tip" tabindex="0"
-              data-tip="RPC URL is where the app sends blockchain requests. For this project, use local Hardhat: http://127.0.0.1:8545.">?</span>
-            <input id="rpcUrlInput" type="text" value="http://127.0.0.1:8545" style="flex: 1; min-width: 180px;" />
-          </div>
-
-          <div class="row">
-            <label for="walletSelect">Sample Wallet</label>
-            <span class="help-tip" tabindex="0"
-              data-tip="Built-in local test accounts. Example: mint token 0 with Wallet 1, then switch to Wallet 2 to see it marked as not owned.">?</span>
-            <select id="walletSelect" style="flex: 1; min-width: 220px;">
+            <label for="tradeLeftWalletSelect">Wallet</label>
+            <select id="tradeLeftWalletSelect" style="flex: 1; min-width: 200px;">
               <option value="wallet1">Wallet 1</option>
               <option value="wallet2">Wallet 2</option>
               <option value="wallet3">Wallet 3</option>
             </select>
-            <button id="connectBtn" type="button">Connect</button>
+            <button id="tradeLoadLeftBtn" type="button" class="mini-btn">Load</button>
           </div>
+          <div class="row">
+            <label for="tradeLeftTokenSelect">NFT</label>
+            <select id="tradeLeftTokenSelect" style="flex: 1; min-width: 220px;"></select>
+          </div>
+          <div class="kv"><strong>Address:</strong> <span id="tradeLeftAddressOutput" class="mono">-</span></div>
 
-          <div class="kv"><strong>Current wallet:</strong> <span id="connectedWalletOutput">None</span></div>
+          <div class="trade-preview-card">
+            <img id="tradeLeftImage" alt="Left trade NFT preview" />
+            <div id="tradeLeftTitle" class="trade-preview-title">Select an NFT to preview player</div>
+          </div>
+        </section>
+
+        <section class="trade-console">
+          <h3>Trade Console</h3>
+          <div class="row">
+            <label for="tradeNotionalInput">Notional (ETH/card)</label>
+            <input id="tradeNotionalInput" type="number" min="0" step="0.0001" value="0.01" />
+            <button id="tradePreviewBtn" type="button" class="mini-btn">Preview Royalty</button>
+          </div>
+          <div class="row">
+            <button id="executeTradeBtn" type="button">Execute Swap</button>
+          </div>
+          <div class="kv"><strong>Royalty receiver:</strong> <span id="tradeRoyaltyReceiverOutput" class="mono">-</span>
+          </div>
+          <div class="kv"><strong>Royalty per card:</strong> <span id="tradeRoyaltyAmountOutput">-</span></div>
+          <div class="kv"><strong>Policy:</strong> Swaps do not pay royalties on-chain in this demo; values shown are
+            informational from ERC-2981.</div>
+          <pre id="tradeConsoleOutput">Trade console ready.</pre>
         </section>
 
         <section class="section">
-          <h3>
-            Step 2) Mint NFT
-            <span class="help-tip" tabindex="0"
-              data-tip="Mint = create a new NFT on-chain. Example: first mint creates token ID 0, next mint creates token ID 1.">?</span>
-          </h3>
-
-          <p class="helper">Creates one NFT for the connected wallet.</p>
-
+          <h3>Right Wallet</h3>
           <div class="row">
-            <button id="mintBtn" type="button" disabled>Mint NFT</button>
+            <label for="tradeRightWalletSelect">Wallet</label>
+            <select id="tradeRightWalletSelect" style="flex: 1; min-width: 200px;">
+              <option value="wallet1">Wallet 1</option>
+              <option value="wallet2">Wallet 2</option>
+              <option value="wallet3">Wallet 3</option>
+            </select>
+            <button id="tradeLoadRightBtn" type="button" class="mini-btn">Load</button>
           </div>
-        </section>
-
-        <section class="section">
-          <h3>
-            Step 3) View by Token ID
-            <span class="help-tip" tabindex="0"
-              data-tip="Enter a token number to load details. Example: type 0 to see owner, metadata JSON, and image for token 0.">?</span>
-          </h3>
-
-          <p class="helper">View owner, metadata, and image for any token ID.</p>
-
           <div class="row">
-            <label for="tokenIdInput">Token ID</label>
-            <input id="tokenIdInput" type="number" min="0" value="0" />
-            <button id="viewBtn" type="button" disabled>View NFT</button>
+            <label for="tradeRightTokenSelect">NFT</label>
+            <select id="tradeRightTokenSelect" style="flex: 1; min-width: 220px;"></select>
+          </div>
+          <div class="kv"><strong>Address:</strong> <span id="tradeRightAddressOutput" class="mono">-</span></div>
+
+          <div class="trade-preview-card">
+            <img id="tradeRightImage" alt="Right trade NFT preview" />
+            <div id="tradeRightTitle" class="trade-preview-title">Select an NFT to preview player</div>
           </div>
         </section>
-
-        <section class="section master-tool">
-          <h3>
-            Master Wallet View
-            <span class="help-tip" tabindex="0"
-              data-tip="Full ownership table. Example: Wallet A owns #0 and #2, Wallet B owns #1.">?</span>
-          </h3>
-
-          <ul id="masterWalletList" class="wallet-list">
-            <li class="helper">No minted NFTs yet.</li>
-          </ul>
-        </section>
-      </div>
-
-      <div class="right-col">
-        <section class="result-panel">
-          <h3>
-            Wallet
-            <span class="help-tip" tabindex="0"
-              data-tip="Current wallet summary. Example values: address 0x..., NFT count 2, recent IDs #3 and #4.">?</span>
-          </h3>
-
-          <div class="kv"><strong>Connected address:</strong> <span id="connectedAddressOutput" class="mono">None</span>
-            <button id="copyConnectedBtn" type="button" class="mini-btn">Copy</button>
-          </div>
-          <div class="kv"><strong>My NFT count:</strong> <span id="myBalanceOutput">-</span></div>
-          <div class="kv"><strong>My token IDs:</strong> <span id="myOwnedTokenIdsOutput">-</span></div>
-          <div class="kv"><strong>Last minted ID:</strong> <span id="lastMintTokenOutput">-</span></div>
-          <div class="kv"><strong>Last tx hash:</strong> <span id="lastMintTxOutput" class="mono">-</span> <button
-              id="copyTxBtn" type="button" class="mini-btn">Copy</button></div>
-
-          <div class="kv"><strong>Recent IDs:</strong></div>
-          <ul id="recentMintedList" class="recent-list">
-            <li class="helper">No mints yet.</li>
-          </ul>
-        </section>
-
-        <section class="result-panel">
-          <h3>
-            Owner Check
-            <span class="help-tip" tabindex="0"
-              data-tip="Compares token owner vs connected wallet. Example result: 'Owned by current wallet' for #1, or 'Not owned' for #0.">?</span>
-          </h3>
-
-          <div class="kv">
-            <strong>Ownership status:</strong>
-            <span id="ownershipStatusOutput" class="ownership-badge unknown">No token viewed yet</span>
-          </div>
-          <div id="ownershipExplainOutput" class="helper">Connect wallet and view a token to compare owner.</div>
-
-          <div id="ownerOutput" class="mono">-</div>
-          <button id="copyOwnerBtn" type="button" class="mini-btn" style="margin-top: 0.45rem;">Copy Owner</button>
-        </section>
-
-        <section class="result-panel">
-          <h3>
-            NFT Preview
-            <span class="help-tip" tabindex="0"
-              data-tip="Shows image + metadata JSON. Example fields: name, description, image URL.">?</span>
-          </h3>
-
-          <div class="preview-stack">
-            <img id="nftImage" alt="NFT image will appear here" />
-
-            <div class="metadata-block">
-              <h4>Metadata JSON</h4>
-              <pre id="metadataOutput">-</pre>
-            </div>
-          </div>
-        </section>
-
-        <p class="right-footnote">Tip: switch between Wallet 1-3 to demo different owners.</p>
       </div>
     </div>
   </main>
