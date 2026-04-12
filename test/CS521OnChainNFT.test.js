@@ -101,4 +101,15 @@ describe("CS521OnChainNFT", function () {
 
     await expect(nft.tokenURI(999n)).to.be.revertedWith("Token does not exist");
   });
+
+  it("exposes ERC-2981 royalty info", async function () {
+    const [deployer] = await ethers.getSigners();
+    const nft = await deployNft();
+
+    const salePrice = ethers.parseEther("1");
+    const [receiver, royaltyAmount] = await nft.royaltyInfo(0n, salePrice);
+
+    expect(receiver).to.equal(deployer.address);
+    expect(royaltyAmount).to.equal(ethers.parseEther("0.05"));
+  });
 });

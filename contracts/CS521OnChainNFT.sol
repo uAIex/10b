@@ -2,15 +2,26 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/common/ERC2981.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-contract CS521OnChainNFT is ERC721 {
+contract CS521OnChainNFT is ERC721, ERC2981, Ownable {
     using Strings for uint256;
 
     uint256 private _nextTokenId;
 
-    constructor() ERC721("CS521 NBA Stars NFT", "NBA521") {}
+    constructor() ERC721("CS521 NBA Stars NFT", "NBA521") {
+        _setDefaultRoyalty(msg.sender, 500); // 5%
+    }
+
+    function setDefaultRoyalty(
+        address receiver,
+        uint96 feeNumerator
+    ) external onlyOwner {
+        _setDefaultRoyalty(receiver, feeNumerator);
+    }
 
     function mint() external returns (uint256 tokenId) {
         tokenId = _nextTokenId;
@@ -108,5 +119,11 @@ contract CS521OnChainNFT is ERC721 {
             return
                 "https://cdn.nba.com/headshots/nba/latest/1040x760/202695.png";
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/202710.png";
+    }
+
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC721, ERC2981) returns (bool) {
+        return super.supportsInterface(interfaceId);
     }
 }
