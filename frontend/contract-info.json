@@ -2,7 +2,7 @@
   "contractName": "CS521OnChainNFT",
   "network": "sepolia",
   "chainId": 11155111,
-  "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "address": "0x25167D74C4D731ec0344AFc66054712710216007",
   "abi": [
     {
       "inputs": [],
