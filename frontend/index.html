@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CS 521 NBA Legends NFT Demo</title>
+  <title>CS 521 Sepolia NFT Demo</title>
   <style>
     :root {
       --bg: #fff7ed;
@@ -528,23 +528,22 @@
   <main class="container">
     <div class="top-bar">
       <h1>
-        🏀 CS 521 NBA Legends NFT Demo
+        🏀 CS 521 Sepolia NFT Demo
         <span class="help-tip" tabindex="0"
-          data-tip="This page lets you create NFTs on a local test blockchain and inspect ownership + metadata. Example flow: choose Wallet 1, mint once, then view token ID 0.">?</span>
+          data-tip="This page lets you create NFTs on the Sepolia testnet with MetaMask and inspect ownership + metadata. Example flow: connect MetaMask, mint once, then view token ID 0.">?</span>
       </h1>
 
       <div class="top-actions">
         <button id="resetUiBtn" type="button" class="mini-btn">Reset UI</button>
-        <button id="hardResetBtn" type="button" class="danger-btn">Hard Reset Chain</button>
       </div>
     </div>
 
-    <p class="helper">Quick flow: <strong>Connect → Mint → View</strong>. Switch to <strong>Trade Mode</strong> to swap
-      cards between wallets.</p>
+    <p class="helper">Quick flow: <strong>Connect MetaMask → Mint on Sepolia → View</strong>. Switch to
+      <strong>Transfer Mode</strong> to send one of your NFTs to another wallet.</p>
 
     <div class="mode-tabs">
       <button id="mintViewTabBtn" class="mode-tab active" type="button">Mint / View Mode</button>
-      <button id="tradeTabBtn" class="mode-tab" type="button">Trade Mode</button>
+      <button id="tradeTabBtn" class="mode-tab" type="button">Transfer Mode</button>
     </div>
 
     <div class="console-panel">
@@ -564,28 +563,13 @@
             <h3>
               Step 1) Connect Wallet
               <span class="help-tip" tabindex="0"
-                data-tip="A wallet is your blockchain account. Example: pick Wallet 2 to mint as a different user than Wallet 1.">?</span>
+                data-tip="MetaMask is your blockchain wallet. The app asks MetaMask to switch to Sepolia before minting.">?</span>
             </h3>
 
-            <p class="helper">Pick a wallet, then click Connect. No manual private key entry needed.</p>
+            <p class="helper">Use the MetaMask browser extension. You will pay gas with Sepolia test ETH, not real ETH.</p>
 
             <div class="row">
-              <label for="rpcUrlInput">RPC URL</label>
-              <span class="help-tip" tabindex="0"
-                data-tip="RPC URL is where the app sends blockchain requests. For this project, use local Hardhat: http://127.0.0.1:8545.">?</span>
-              <input id="rpcUrlInput" type="text" value="http://127.0.0.1:8545" style="flex: 1; min-width: 180px;" />
-            </div>
-
-            <div class="row">
-              <label for="walletSelect">Sample Wallet</label>
-              <span class="help-tip" tabindex="0"
-                data-tip="Built-in local test accounts. Example: mint token 0 with Wallet 1, then switch to Wallet 2 to see it marked as not owned.">?</span>
-              <select id="walletSelect" style="flex: 1; min-width: 220px;">
-                <option value="wallet1">Wallet 1</option>
-                <option value="wallet2">Wallet 2</option>
-                <option value="wallet3">Wallet 3</option>
-              </select>
-              <button id="connectBtn" type="button">Connect</button>
+              <button id="connectBtn" type="button">Connect MetaMask</button>
             </div>
 
             <div class="kv"><strong>Current wallet:</strong> <span id="connectedWalletOutput">None</span></div>
@@ -595,7 +579,7 @@
             <h3>
               Step 2) Mint NFT
               <span class="help-tip" tabindex="0"
-                data-tip="Mint = create a new NFT on-chain. Example: first mint creates token ID 0, next mint creates token ID 1.">?</span>
+                data-tip="Mint = create a new NFT on Sepolia. MetaMask will ask you to approve the transaction and pay a Sepolia test ETH gas fee.">?</span>
             </h3>
 
             <p class="helper">Creates one NFT for the connected wallet.</p>
@@ -692,7 +676,7 @@
             </div>
           </section>
 
-          <p class="right-footnote">Tip: switch between Wallet 1-3 to demo different owners.</p>
+          <p class="right-footnote">Tip: use a second MetaMask account to demo different owners.</p>
         </div>
       </div>
     </div>
@@ -700,29 +684,21 @@
     <div id="tradeMode" class="mode-panel">
       <section class="section">
         <h3>
-          Trade Mode (Wallet ↔ Wallet)
+          Transfer Mode
           <span class="help-tip" tabindex="0"
-            data-tip="Pick one wallet + token on each side, then execute a card swap. This mode uses local demo wallets only.">?</span>
+            data-tip="Pick one of your NFTs, enter a recipient wallet address, and approve the transfer in MetaMask.">?</span>
         </h3>
-        <p class="helper">Simplest royalty policy for swaps: informational ERC-2981 preview only; enforce royalties on
-          priced sales.</p>
+        <p class="helper">Transfers use your connected MetaMask account. ERC-2981 royalty output is informational for
+          marketplace-style sales.</p>
       </section>
 
       <div class="trade-grid">
         <section class="section">
-          <h3>Left Wallet</h3>
+          <h3>Your Wallet</h3>
           <div class="row">
-            <label for="tradeLeftWalletSelect">Wallet</label>
-            <select id="tradeLeftWalletSelect" style="flex: 1; min-width: 200px;">
-              <option value="wallet1">Wallet 1</option>
-              <option value="wallet2">Wallet 2</option>
-              <option value="wallet3">Wallet 3</option>
-            </select>
-            <button id="tradeLoadLeftBtn" type="button" class="mini-btn">Load</button>
-          </div>
-          <div class="row">
-            <label for="tradeLeftTokenSelect">NFT</label>
+            <label for="tradeLeftTokenSelect">Your NFT</label>
             <select id="tradeLeftTokenSelect" style="flex: 1; min-width: 220px;"></select>
+            <button id="tradeLoadLeftBtn" type="button" class="mini-btn">Reload</button>
           </div>
           <div class="kv"><strong>Address:</strong> <span id="tradeLeftAddressOutput" class="mono">-</span></div>
 
@@ -733,44 +709,33 @@
         </section>
 
         <section class="trade-console">
-          <h3>Trade Console</h3>
+          <h3>Transfer Console</h3>
           <div class="row">
             <label for="tradeNotionalInput">Notional (ETH/card)</label>
             <input id="tradeNotionalInput" type="number" min="0" step="0.0001" value="0.01" />
             <button id="tradePreviewBtn" type="button" class="mini-btn">Preview Royalty</button>
           </div>
           <div class="row">
-            <button id="executeTradeBtn" type="button">Execute Swap</button>
+            <label for="recipientAddressInput">Recipient</label>
+            <input id="recipientAddressInput" type="text" placeholder="0x..." style="flex: 1; min-width: 240px;" />
+          </div>
+          <div class="row">
+            <button id="executeTradeBtn" type="button" disabled>Transfer NFT</button>
           </div>
           <div class="kv"><strong>Royalty receiver:</strong> <span id="tradeRoyaltyReceiverOutput" class="mono">-</span>
           </div>
           <div class="kv"><strong>Royalty per card:</strong> <span id="tradeRoyaltyAmountOutput">-</span></div>
-          <div class="kv"><strong>Policy:</strong> Swaps do not pay royalties on-chain in this demo; values shown are
-            informational from ERC-2981.</div>
-          <pre id="tradeConsoleOutput">Trade console ready.</pre>
+          <div class="kv"><strong>Policy:</strong> Direct transfers do not pay royalties on-chain in this demo; values
+            shown are informational from ERC-2981.</div>
+          <pre id="tradeConsoleOutput">Transfer console ready.</pre>
         </section>
 
         <section class="section">
-          <h3>Right Wallet</h3>
-          <div class="row">
-            <label for="tradeRightWalletSelect">Wallet</label>
-            <select id="tradeRightWalletSelect" style="flex: 1; min-width: 200px;">
-              <option value="wallet1">Wallet 1</option>
-              <option value="wallet2">Wallet 2</option>
-              <option value="wallet3">Wallet 3</option>
-            </select>
-            <button id="tradeLoadRightBtn" type="button" class="mini-btn">Load</button>
-          </div>
-          <div class="row">
-            <label for="tradeRightTokenSelect">NFT</label>
-            <select id="tradeRightTokenSelect" style="flex: 1; min-width: 220px;"></select>
-          </div>
-          <div class="kv"><strong>Address:</strong> <span id="tradeRightAddressOutput" class="mono">-</span></div>
-
-          <div class="trade-preview-card">
-            <img id="tradeRightImage" alt="Right trade NFT preview" />
-            <div id="tradeRightTitle" class="trade-preview-title">Select an NFT to preview player</div>
-          </div>
+          <h3>How Transfer Works</h3>
+          <p class="helper">The page calls the ERC-721 <span class="mono">transferFrom</span> function through
+            MetaMask. MetaMask signs and broadcasts the transaction from your connected Sepolia account.</p>
+          <p class="helper" style="margin-top: 0.6rem;">Use this only with test wallets and Sepolia test ETH for the
+            course demo.</p>
         </section>
       </div>
     </div>

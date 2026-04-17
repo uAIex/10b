@@ -8,15 +8,16 @@ This repository is an end-to-end NFT project built for CS 521. It includes a Sol
 - Supports minting NFTs with globally increasing token IDs.
 - Returns token metadata from `tokenURI()` as base64 JSON data.
 - Includes a frontend that lets a user:
-   - choose one of three built-in local sample wallets (auto-connect),
+  - connect with the MetaMask browser extension on Sepolia,
   - mint NFTs,
   - view owner, metadata, and image by token ID,
   - see ownership status relative to the connected wallet,
-   - review wallet activity and a master ownership view,
-   - follow live actions/errors in a Console panel at the top.
+  - review wallet activity and a master ownership view,
+  - transfer NFTs from the connected MetaMask wallet,
+  - follow live actions/errors in a Console panel at the top.
 - Syncs deployment output (contract address + ABI + chain info) directly into `frontend/contract-info.json`.
 
-Network used in this version: testnet (Hardhat localhost testnet).
+Network used in this version: Sepolia testnet.
 
 ## Project requirements coverage
 
@@ -35,10 +36,10 @@ This section maps the implementation to common course project requirements.
    Frontend talks directly to contract over JSON-RPC; no custom backend service or database is used.
 
 5. **Local development and testing**  
-   Hardhat local node, deployment script, and unit tests are included.
+   Hardhat compile/test scripts and unit tests are included.
 
 6. **Testnet deployment support**  
-   Hardhat localhost testnet flow is supported through `npm run node` and `npm run deploy:local`.
+   Sepolia deployment is supported through `npm run deploy:sepolia`.
 
 7. **Automatic contract info wiring to frontend**  
    `scripts/deploy.js` writes `frontend/contract-info.json` after each deployment.
@@ -68,27 +69,38 @@ topic10-test/
 
 ## Install
 
-No environment file is required for the local testnet workflow.
+Create a local `.env` file from the example:
 
 ```bash
 # from the repository root
 npm install
+cp .env.example .env
 ```
 
-## Run on testnet
+Edit `.env`:
 
-Start the testnet blockchain (keep this terminal open):
+```text
+SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY
+PRIVATE_KEY=0xyour_test_wallet_private_key
+```
+
+Use a test wallet only. It needs Sepolia test ETH for deployment gas.
+
+## Deploy to Sepolia
 
 ```bash
 # from the repository root
-npm run node
+npm run compile
+npm run test
+npm run deploy:sepolia
 ```
 
-In a second terminal, deploy to testnet and run frontend:
+The deployment script writes the Sepolia contract address, ABI, and chain ID into `frontend/contract-info.json`.
+
+## Run frontend locally
 
 ```bash
 # from the repository root
-npm run deploy:local
 npm run frontend
 ```
 
@@ -98,16 +110,30 @@ Open:
 http://127.0.0.1:5173
 ```
 
-## Testnet demo flow (no MetaMask required)
+## Sepolia demo flow with MetaMask
 
-1. In Step 1, select one of the built-in wallets (**Wallet 1**, **Wallet 2**, or **Wallet 3**).
-2. The app connects automatically to the selected wallet.
-3. Click **Mint NFT**.
-4. Enter token ID (for first mint, this is usually `0`) and click **View NFT**.
-5. Confirm owner, metadata JSON (always visible), and image are displayed.
-6. Watch the **Console** panel at the top for status updates like connect/mint/view success or failures.
+1. Install MetaMask and switch/add the Sepolia testnet.
+2. Fund your MetaMask account with Sepolia test ETH.
+3. Open the frontend and click **Connect MetaMask**.
+4. Click **Mint NFT** and approve the transaction in MetaMask.
+5. Enter the minted token ID and click **View NFT**.
+6. Confirm owner, metadata JSON, and image are displayed.
+7. Optional: use **Transfer Mode** to send a token to another Sepolia wallet.
 
-Tip: switch wallets to demonstrate ownership differences across accounts.
+Tip: use a second MetaMask account to demonstrate ownership differences across accounts.
+
+## GitHub Pages setup
+
+This frontend is static and can be hosted on GitHub Pages after the Sepolia deployment has updated `frontend/contract-info.json`. The repo includes `.github/workflows/pages.yml`, which publishes the `frontend` folder.
+
+1. Confirm `frontend/contract-info.json` has `"network": "sepolia"`, `"chainId": 11155111`, and a real non-zero contract address.
+2. Commit and push the repo.
+3. In GitHub, open **Settings → Pages**.
+4. Set **Source** to **GitHub Actions**.
+5. Push to `main`, or run the **Deploy frontend to GitHub Pages** workflow manually.
+6. Open the published Pages URL in a browser with MetaMask installed.
+
+Because the page uses MetaMask for signing, you do not need to expose `PRIVATE_KEY` or `SEPOLIA_RPC_URL` in GitHub Pages.
 
 ## Tests and checks
 
@@ -130,4 +156,5 @@ npm run test
 - ERC-721 token IDs are global for the contract, not per wallet.
 - Any wallet can read metadata for existing token IDs.
 - Ownership is wallet-specific and shown in the UI as owned/not-owned for the connected account.
+- MetaMask pays mint/transfer gas with Sepolia test ETH.
 - The Console panel is fixed-size and scrollable to avoid layout resizing from long messages.
