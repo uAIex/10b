@@ -45,6 +45,7 @@ const copyTxBtn = getRequiredElement("copyTxBtn");
 const tradeLeftWalletSelect = getRequiredElement("tradeLeftWalletSelect");
 const tradeLeftTokenSelect = getRequiredElement("tradeLeftTokenSelect");
 const tradeLoadLeftBtn = getRequiredElement("tradeLoadLeftBtn");
+const approveLeftBtn = getRequiredElement("approveLeftBtn");
 const tradeLeftAddressOutput = getRequiredElement("tradeLeftAddressOutput");
 const tradeLeftImage = getRequiredElement("tradeLeftImage");
 const tradeLeftTitle = getRequiredElement("tradeLeftTitle");
@@ -52,6 +53,7 @@ const tradeLeftTitle = getRequiredElement("tradeLeftTitle");
 const tradeRightWalletSelect = getRequiredElement("tradeRightWalletSelect");
 const tradeRightTokenSelect = getRequiredElement("tradeRightTokenSelect");
 const tradeLoadRightBtn = getRequiredElement("tradeLoadRightBtn");
+const approveRightBtn = getRequiredElement("approveRightBtn");
 const tradeRightAddressOutput = getRequiredElement("tradeRightAddressOutput");
 const tradeRightImage = getRequiredElement("tradeRightImage");
 const tradeRightTitle = getRequiredElement("tradeRightTitle");
@@ -254,6 +256,8 @@ function updateConnectionUi() {
   tradeRightWalletSelect.disabled = !nftReady;
   tradeLeftTokenSelect.disabled = !nftReady;
   tradeRightTokenSelect.disabled = !nftReady;
+  approveLeftBtn.disabled = !(nftReady && settlementReady);
+  approveRightBtn.disabled = !(nftReady && settlementReady);
   tradeNotionalInput.disabled = !nftReady;
   executeTradeBtn.disabled = !(nftReady && settlementReady);
 
@@ -598,6 +602,62 @@ async function isSettlementApproved(owner, tokenId) {
   }
 
   return nftContract.isApprovedForAll(owner, settlementContract.target);
+}
+
+async function approveSettlementForTradeSide(side) {
+  if (!nftContract || !settlementContract || !connectedAddress) {
+    appendTradeConsole("Connect MetaMask and ensure settlement contract is configured.");
+    return;
+  }
+
+  const isLeft = side === "left";
+  const walletSelect = isLeft ? tradeLeftWalletSelect : tradeRightWalletSelect;
+  const tokenSelect = isLeft ? tradeLeftTokenSelect : tradeRightTokenSelect;
+  const approveBtn = isLeft ? approveLeftBtn : approveRightBtn;
+  const wallet = walletSelect.value;
+  const tokenId = tokenSelect.value;
+
+  if (!ethers.isAddress(wallet)) {
+    appendTradeConsole(`Select a valid ${side} wallet first.`);
+    return;
+  }
+  if (tokenId === "") {
+    appendTradeConsole(`Select a ${side} NFT first.`);
+    return;
+  }
+  if (connectedAddress.toLowerCase() !== wallet.toLowerCase()) {
+    appendTradeConsole(`Connect MetaMask as the ${side} wallet before approving token #${tokenId}.`);
+    return;
+  }
+
+  try {
+    await assertSepoliaConnected();
+    setLoader(true, `Approving settlement for ${side} token #${tokenId}...`);
+    setButtonLoading(approveBtn, true, "Approving...");
+
+    const owner = await nftContract.ownerOf(tokenId);
+    if (owner.toLowerCase() !== connectedAddress.toLowerCase()) {
+      throw new Error(`Connected wallet does not own ${side} token #${tokenId}.`);
+    }
+
+    if (await isSettlementApproved(wallet, tokenId)) {
+      appendTradeConsole(`${side} token #${tokenId} is already approved for settlement.`);
+      return;
+    }
+
+    const tx = await nftContract.approve(settlementContract.target, tokenId);
+    appendTradeConsole(`Approval submitted for ${side} token #${tokenId}: ${tx.hash}`);
+    const receipt = await tx.wait();
+    appendTradeConsole(`Approval confirmed for ${side} token #${tokenId}: ${receipt.hash}`);
+    setStatus(`Settlement approval confirmed.\nTx: ${receipt.hash}\nExplorer: ${SEPOLIA_EXPLORER_TX}${receipt.hash}`);
+  } catch (err) {
+    const msg = extractErrorMessage(err);
+    appendTradeConsole(`Approval failed: ${msg}`);
+    setStatus(`Approval failed: ${msg}`);
+  } finally {
+    setLoader(false);
+    setButtonLoading(approveBtn, false, "Approving...");
+  }
 }
 
 async function executeTrade() {
@@ -1013,6 +1073,8 @@ function bindEvents() {
   tradePreviewBtn.addEventListener("click", () => {
     refreshTradePreview().catch((err) => appendTradeConsole(`Preview failed: ${extractErrorMessage(err)}`));
   });
+  approveLeftBtn.addEventListener("click", () => approveSettlementForTradeSide("left"));
+  approveRightBtn.addEventListener("click", () => approveSettlementForTradeSide("right"));
   executeTradeBtn.addEventListener("click", executeTrade);
 
   copyConnectedBtn.addEventListener("click", () => copyText(connectedAddressOutput.textContent, "Connected wallet address copied."));
