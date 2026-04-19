@@ -19,29 +19,56 @@ async function main() {
   console.log(`Deploying with account: ${deployer.address}`);
   console.log(`Network: ${hre.network.name} (chainId ${network.chainId})`);
 
-  const factory = await hre.ethers.getContractFactory("CS521OnChainNFT");
-  const contract = await factory.deploy();
-  await contract.waitForDeployment();
+  const nftFactory = await hre.ethers.getContractFactory("CS521OnChainNFT");
+  const nft = await nftFactory.deploy();
+  await nft.waitForDeployment();
+  const nftAddress = await nft.getAddress();
+  console.log(`CS521OnChainNFT deployed at: ${nftAddress}`);
 
-  const address = await contract.getAddress();
-  console.log(`CS521OnChainNFT deployed at: ${address}`);
+  const settlementFactory = await hre.ethers.getContractFactory("TradeSettlement");
+  const settlement = await settlementFactory.deploy();
+  await settlement.waitForDeployment();
+  const settlementAddress = await settlement.getAddress();
+  console.log(`TradeSettlement deployed at: ${settlementAddress}`);
 
-  const artifact = await hre.artifacts.readArtifact("CS521OnChainNFT");
-  const output = {
-    contractName: artifact.contractName,
+  const nftArtifact = await hre.artifacts.readArtifact("CS521OnChainNFT");
+  const settlementArtifact = await hre.artifacts.readArtifact("TradeSettlement");
+
+  const sepoliaConfig = {
     network: hre.network.name,
     chainId: Number(network.chainId),
-    address,
-    abi: artifact.abi,
-    bytecode: artifact.bytecode,
+    nft: {
+      contractName: nftArtifact.contractName,
+      address: nftAddress,
+      abi: nftArtifact.abi,
+    },
+    settlement: {
+      contractName: settlementArtifact.contractName,
+      address: settlementAddress,
+      abi: settlementArtifact.abi,
+    },
   };
 
-  const outputPath = path.join(__dirname, "..", "frontend", "contract-info.json");
-  fs.writeFileSync(outputPath, JSON.stringify(output, null, 2));
-  console.log(`Wrote frontend contract info to: ${outputPath}`);
+  const frontendDir = path.join(__dirname, "..", "frontend");
+  const sepoliaConfigPath = path.join(frontendDir, "sepolia-config.json");
+  fs.writeFileSync(sepoliaConfigPath, JSON.stringify(sepoliaConfig, null, 2));
+  console.log(`Wrote frontend Sepolia config to: ${sepoliaConfigPath}`);
+
+  const legacyContractInfo = {
+    contractName: nftArtifact.contractName,
+    network: hre.network.name,
+    chainId: Number(network.chainId),
+    address: nftAddress,
+    abi: nftArtifact.abi,
+  };
+  const legacyPath = path.join(frontendDir, "contract-info.json");
+  fs.writeFileSync(legacyPath, JSON.stringify(legacyContractInfo, null, 2));
+  console.log(`Updated legacy NFT config at: ${legacyPath}`);
 
   if (hre.network.name === "sepolia") {
-    console.log(`Sepolia deployment complete. Contract address: ${address}`);
+    console.log("Sepolia deployment complete.");
+    console.log(`NFT: ${nftAddress}`);
+    console.log(`Settlement: ${settlementAddress}`);
   }
 }
 
