@@ -684,58 +684,67 @@
     <div id="tradeMode" class="mode-panel">
       <section class="section">
         <h3>
-          Transfer Mode
+          Trade Mode
           <span class="help-tip" tabindex="0"
-            data-tip="Pick one of your NFTs, enter a recipient wallet address, and approve the transfer in MetaMask.">?</span>
+            data-tip="Pick left and right wallets/NFTs, preview royalty, and execute a Sepolia settlement via MetaMask.">?</span>
         </h3>
-        <p class="helper">Transfers use your connected MetaMask account. ERC-2981 royalty output is informational for
-          marketplace-style sales.</p>
+        <p class="helper">Royalty policy: fixed-price ETH sale enforces ERC-2981 on-chain; pure NFT swap has no
+          enforceable royalty base; swap + ETH leg enforces royalty on ETH leg.</p>
       </section>
 
       <div class="trade-grid">
         <section class="section">
-          <h3>Your Wallet</h3>
+          <h3>Left Side (Seller)</h3>
           <div class="row">
-            <label for="tradeLeftTokenSelect">Your NFT</label>
-            <select id="tradeLeftTokenSelect" style="flex: 1; min-width: 220px;"></select>
+            <label for="tradeLeftWalletSelect">Wallet</label>
+            <select id="tradeLeftWalletSelect" style="flex: 1; min-width: 220px;"></select>
             <button id="tradeLoadLeftBtn" type="button" class="mini-btn">Reload</button>
+          </div>
+          <div class="row">
+            <label for="tradeLeftTokenSelect">NFT</label>
+            <select id="tradeLeftTokenSelect" style="flex: 1; min-width: 220px;"></select>
           </div>
           <div class="kv"><strong>Address:</strong> <span id="tradeLeftAddressOutput" class="mono">-</span></div>
 
           <div class="trade-preview-card">
             <img id="tradeLeftImage" alt="Left trade NFT preview" />
-            <div id="tradeLeftTitle" class="trade-preview-title">Select an NFT to preview player</div>
+            <div id="tradeLeftTitle" class="trade-preview-title">Select a wallet and NFT</div>
           </div>
         </section>
 
         <section class="trade-console">
-          <h3>Transfer Console</h3>
+          <h3>Trade Console</h3>
           <div class="row">
-            <label for="tradeNotionalInput">Notional (ETH/card)</label>
+            <label for="tradeNotionalInput">ETH leg</label>
             <input id="tradeNotionalInput" type="number" min="0" step="0.0001" value="0.01" />
             <button id="tradePreviewBtn" type="button" class="mini-btn">Preview Royalty</button>
           </div>
           <div class="row">
-            <label for="recipientAddressInput">Recipient</label>
-            <input id="recipientAddressInput" type="text" placeholder="0x..." style="flex: 1; min-width: 240px;" />
-          </div>
-          <div class="row">
-            <button id="executeTradeBtn" type="button" disabled>Transfer NFT</button>
+            <button id="executeTradeBtn" type="button" disabled>Execute Settlement</button>
           </div>
           <div class="kv"><strong>Royalty receiver:</strong> <span id="tradeRoyaltyReceiverOutput" class="mono">-</span>
           </div>
-          <div class="kv"><strong>Royalty per card:</strong> <span id="tradeRoyaltyAmountOutput">-</span></div>
-          <div class="kv"><strong>Policy:</strong> Direct transfers do not pay royalties on-chain in this demo; values
-            shown are informational from ERC-2981.</div>
-          <pre id="tradeConsoleOutput">Transfer console ready.</pre>
+          <div class="kv"><strong>Royalty amount:</strong> <span id="tradeRoyaltyAmountOutput">-</span></div>
+          <pre id="tradeConsoleOutput">Trade console ready.</pre>
         </section>
 
         <section class="section">
-          <h3>How Transfer Works</h3>
-          <p class="helper">The page calls the ERC-721 <span class="mono">transferFrom</span> function through
-            MetaMask. MetaMask signs and broadcasts the transaction from your connected Sepolia account.</p>
-          <p class="helper" style="margin-top: 0.6rem;">Use this only with test wallets and Sepolia test ETH for the
-            course demo.</p>
+          <h3>Right Side (Buyer / Counterparty)</h3>
+          <div class="row">
+            <label for="tradeRightWalletSelect">Wallet</label>
+            <select id="tradeRightWalletSelect" style="flex: 1; min-width: 220px;"></select>
+            <button id="tradeLoadRightBtn" type="button" class="mini-btn">Reload</button>
+          </div>
+          <div class="row">
+            <label for="tradeRightTokenSelect">NFT (optional for swap)</label>
+            <select id="tradeRightTokenSelect" style="flex: 1; min-width: 220px;"></select>
+          </div>
+          <div class="kv"><strong>Address:</strong> <span id="tradeRightAddressOutput" class="mono">-</span></div>
+
+          <div class="trade-preview-card">
+            <img id="tradeRightImage" alt="Right trade NFT preview" />
+            <div id="tradeRightTitle" class="trade-preview-title">Select a wallet and optional NFT</div>
+          </div>
         </section>
       </div>
     </div>
