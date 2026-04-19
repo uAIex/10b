@@ -41,24 +41,35 @@ const masterWalletList = getRequiredElement("masterWalletList");
 const copyConnectedBtn = getRequiredElement("copyConnectedBtn");
 const copyOwnerBtn = getRequiredElement("copyOwnerBtn");
 const copyTxBtn = getRequiredElement("copyTxBtn");
-const tradeLoadLeftBtn = getRequiredElement("tradeLoadLeftBtn");
+
+const tradeLeftWalletSelect = getRequiredElement("tradeLeftWalletSelect");
 const tradeLeftTokenSelect = getRequiredElement("tradeLeftTokenSelect");
-const tradePreviewBtn = getRequiredElement("tradePreviewBtn");
-const executeTradeBtn = getRequiredElement("executeTradeBtn");
-const tradeNotionalInput = getRequiredElement("tradeNotionalInput");
-const tradeRoyaltyReceiverOutput = getRequiredElement("tradeRoyaltyReceiverOutput");
-const tradeRoyaltyAmountOutput = getRequiredElement("tradeRoyaltyAmountOutput");
-const tradeConsoleOutput = getRequiredElement("tradeConsoleOutput");
+const tradeLoadLeftBtn = getRequiredElement("tradeLoadLeftBtn");
 const tradeLeftAddressOutput = getRequiredElement("tradeLeftAddressOutput");
 const tradeLeftImage = getRequiredElement("tradeLeftImage");
 const tradeLeftTitle = getRequiredElement("tradeLeftTitle");
-const recipientAddressInput = getRequiredElement("recipientAddressInput");
+
+const tradeRightWalletSelect = getRequiredElement("tradeRightWalletSelect");
+const tradeRightTokenSelect = getRequiredElement("tradeRightTokenSelect");
+const tradeLoadRightBtn = getRequiredElement("tradeLoadRightBtn");
+const tradeRightAddressOutput = getRequiredElement("tradeRightAddressOutput");
+const tradeRightImage = getRequiredElement("tradeRightImage");
+const tradeRightTitle = getRequiredElement("tradeRightTitle");
+
+const tradeNotionalInput = getRequiredElement("tradeNotionalInput");
+const tradePreviewBtn = getRequiredElement("tradePreviewBtn");
+const executeTradeBtn = getRequiredElement("executeTradeBtn");
+const tradeRoyaltyReceiverOutput = getRequiredElement("tradeRoyaltyReceiverOutput");
+const tradeRoyaltyAmountOutput = getRequiredElement("tradeRoyaltyAmountOutput");
+const tradeConsoleOutput = getRequiredElement("tradeConsoleOutput");
 
 let provider;
 let signer;
-let contract;
-let contractInfo;
+let nftContract;
+let settlementContract;
+let sepoliaConfig;
 let connectedAddress = null;
+
 const walletMintHistory = new Map();
 let ownershipRegistry = new Map();
 
@@ -133,25 +144,71 @@ function parseDataUriJson(uri) {
   return JSON.parse(atob(uri.slice(prefix.length)));
 }
 
-async function loadContractInfo() {
-  const res = await fetch("./contract-info.json", { cache: "no-store" });
+async function fetchJson(path) {
+  const res = await fetch(path, { cache: "no-store" });
   if (!res.ok) {
-    throw new Error("Missing contract-info.json. Deploy contract first.");
+    throw new Error(`Could not load ${path}`);
   }
-
-  const info = await res.json();
-  if (!info.address || !ethers.isAddress(info.address)) {
-    throw new Error("contract-info.json has invalid contract address. Re-run deployment.");
-  }
-  if (!Array.isArray(info.abi) || info.abi.length === 0) {
-    throw new Error("contract-info.json is missing ABI. Re-run deployment.");
-  }
-
-  return info;
+  return res.json();
 }
 
-function hasDeployedContract() {
-  return Boolean(contractInfo?.address) && contractInfo.address !== ZERO_ADDRESS;
+function extractErrorMessage(err) {
+  const raw =
+    err?.shortMessage ||
+    err?.reason ||
+    err?.info?.error?.message ||
+    err?.data?.message ||
+    err?.message ||
+    "Unknown error";
+
+  return raw
+    .replace("execution reverted: ", "")
+    .replace("Error: ", "")
+    .trim();
+}
+
+async function loadSepoliaConfig() {
+  let primary;
+  let legacy;
+
+  try {
+    primary = await fetchJson("./sepolia-config.json");
+  } catch {
+    primary = undefined;
+  }
+
+  try {
+    legacy = await fetchJson("./contract-info.json");
+  } catch {
+    legacy = undefined;
+  }
+
+  if (!primary && !legacy) {
+    throw new Error("Missing sepolia-config.json and contract-info.json. Deploy contracts first.");
+  }
+
+  const chainId = Number(primary?.chainId ?? legacy?.chainId ?? SEPOLIA_CHAIN_ID);
+  const nftAddress = primary?.nft?.address ?? legacy?.address ?? ZERO_ADDRESS;
+  const nftAbi = Array.isArray(primary?.nft?.abi) && primary.nft.abi.length > 0 ? primary.nft.abi : (legacy?.abi || []);
+  const settlementAddress = primary?.settlement?.address ?? ZERO_ADDRESS;
+  const settlementAbi = Array.isArray(primary?.settlement?.abi) ? primary.settlement.abi : [];
+
+  if (!ethers.isAddress(nftAddress)) {
+    throw new Error("Invalid NFT contract address in config.");
+  }
+
+  return {
+    network: primary?.network ?? legacy?.network ?? "sepolia",
+    chainId,
+    nft: {
+      address: nftAddress,
+      abi: nftAbi,
+    },
+    settlement: {
+      address: settlementAddress,
+      abi: settlementAbi,
+    },
+  };
 }
 
 async function switchToSepolia() {
@@ -185,16 +242,32 @@ async function switchToSepolia() {
 }
 
 function updateConnectionUi() {
-  const isConnected = Boolean(contract && connectedAddress);
-  mintBtn.disabled = !isConnected;
-  viewBtn.disabled = !isConnected;
-  executeTradeBtn.disabled = !isConnected;
-  tradePreviewBtn.disabled = !isConnected;
-  tradeLoadLeftBtn.disabled = !isConnected;
-  connectedWalletOutput.textContent = isConnected ? "MetaMask" : "None";
+  const nftReady = Boolean(nftContract && connectedAddress);
+  const settlementReady = Boolean(settlementContract);
+
+  mintBtn.disabled = !nftReady;
+  viewBtn.disabled = !nftReady;
+  tradePreviewBtn.disabled = !nftReady;
+  tradeLoadLeftBtn.disabled = !nftReady;
+  tradeLoadRightBtn.disabled = !nftReady;
+  tradeLeftWalletSelect.disabled = !nftReady;
+  tradeRightWalletSelect.disabled = !nftReady;
+  tradeLeftTokenSelect.disabled = !nftReady;
+  tradeRightTokenSelect.disabled = !nftReady;
+  tradeNotionalInput.disabled = !nftReady;
+  executeTradeBtn.disabled = !(nftReady && settlementReady);
+
+  connectedWalletOutput.textContent = nftReady ? "MetaMask" : "None";
   connectedAddressOutput.textContent = connectedAddress || "None";
-  tradeLeftAddressOutput.textContent = connectedAddress || "-";
-  copyConnectedBtn.disabled = !isConnected;
+
+  copyConnectedBtn.disabled = !nftReady;
+}
+
+function clearTradeSide(side) {
+  const imageEl = side === "left" ? tradeLeftImage : tradeRightImage;
+  const titleEl = side === "left" ? tradeLeftTitle : tradeRightTitle;
+  imageEl.removeAttribute("src");
+  titleEl.textContent = side === "left" ? "Select a wallet and NFT" : "Select a wallet and optional NFT";
 }
 
 function resetUiState(options = {}) {
@@ -205,15 +278,16 @@ function resetUiState(options = {}) {
 
   provider = undefined;
   signer = undefined;
-  contract = undefined;
+  nftContract = undefined;
+  settlementContract = undefined;
   connectedAddress = null;
   ownershipRegistry = new Map();
 
   ownerOutput.textContent = "-";
   metadataOutput.textContent = "-";
   nftImage.removeAttribute("src");
-  tradeLeftImage.removeAttribute("src");
-  tradeLeftTitle.textContent = "Connect MetaMask and load your NFTs";
+  clearTradeSide("left");
+  clearTradeSide("right");
   myBalanceOutput.textContent = "-";
   myOwnedTokenIdsOutput.textContent = "-";
   lastMintTokenOutput.textContent = "-";
@@ -221,23 +295,30 @@ function resetUiState(options = {}) {
   tokenIdInput.value = "0";
   tradeRoyaltyReceiverOutput.textContent = "-";
   tradeRoyaltyAmountOutput.textContent = "-";
+  tradeLeftAddressOutput.textContent = "-";
+  tradeRightAddressOutput.textContent = "-";
+  tradeConsoleOutput.textContent = "Trade console ready.";
 
   setOwnershipStatus("unknown", ownershipMessage);
+  setTokenSelectOptions(tradeLeftTokenSelect, []);
+  setTokenSelectOptions(tradeRightTokenSelect, [], true);
+  setWalletSelectOptions(tradeLeftWalletSelect, []);
+  setWalletSelectOptions(tradeRightWalletSelect, []);
+
   updateConnectionUi();
   renderRecentMintedIds();
   renderMasterWalletView();
-  setTokenSelectOptions(tradeLeftTokenSelect, []);
   setStatus(statusMessage);
 }
 
 async function refreshWalletStats() {
-  if (!contract || !connectedAddress) {
+  if (!nftContract || !connectedAddress) {
     myBalanceOutput.textContent = "-";
     myOwnedTokenIdsOutput.textContent = "-";
     return;
   }
 
-  const count = await contract.balanceOf(connectedAddress);
+  const count = await nftContract.balanceOf(connectedAddress);
   const ownedIds = ownershipRegistry.get(connectedAddress) || [];
   myBalanceOutput.textContent = count.toString();
   myOwnedTokenIdsOutput.textContent = ownedIds.length > 0 ? ownedIds.map((id) => `#${id}`).join(", ") : "None";
@@ -299,18 +380,18 @@ function renderMasterWalletView() {
 }
 
 async function refreshOwnershipRegistry() {
-  if (!contract) {
+  if (!nftContract) {
     ownershipRegistry = new Map();
     renderMasterWalletView();
     return;
   }
 
-  const totalMinted = Number(await contract.totalMinted());
+  const totalMinted = Number(await nftContract.totalMinted());
   const registry = new Map();
 
   for (let tokenId = 0; tokenId < totalMinted; tokenId += 1) {
     try {
-      const owner = await contract.ownerOf(tokenId);
+      const owner = await nftContract.ownerOf(tokenId);
       const existing = registry.get(owner) || [];
       existing.push(tokenId.toString());
       registry.set(owner, existing);
@@ -323,13 +404,46 @@ async function refreshOwnershipRegistry() {
   renderMasterWalletView();
 }
 
-function setTokenSelectOptions(selectEl, tokenIds) {
+function setWalletSelectOptions(selectEl, wallets, preferred) {
+  const deduped = Array.from(new Set(wallets.filter(Boolean)));
   selectEl.innerHTML = "";
-  if (tokenIds.length === 0) {
+
+  if (deduped.length === 0) {
     const opt = document.createElement("option");
     opt.value = "";
-    opt.textContent = "No NFTs";
+    opt.textContent = "No wallets";
     selectEl.appendChild(opt);
+    return;
+  }
+
+  deduped.forEach((wallet) => {
+    const opt = document.createElement("option");
+    opt.value = wallet;
+    opt.textContent = wallet;
+    selectEl.appendChild(opt);
+  });
+
+  const selected = preferred && deduped.includes(preferred) ? preferred : deduped[0];
+  selectEl.value = selected;
+}
+
+function setTokenSelectOptions(selectEl, tokenIds, includeEmptyOption = false) {
+  selectEl.innerHTML = "";
+
+  if (includeEmptyOption) {
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "No NFT (ETH-only sale)";
+    selectEl.appendChild(empty);
+  }
+
+  if (tokenIds.length === 0) {
+    if (!includeEmptyOption) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "No NFTs";
+      selectEl.appendChild(opt);
+    }
     return;
   }
 
@@ -341,91 +455,293 @@ function setTokenSelectOptions(selectEl, tokenIds) {
   });
 }
 
-async function refreshTransferTokens() {
-  if (!connectedAddress) {
-    setTokenSelectOptions(tradeLeftTokenSelect, []);
-    tradeLeftAddressOutput.textContent = "-";
+function parseNotionalWei() {
+  const raw = (tradeNotionalInput.value || "0").trim();
+  const normalized = raw === "" ? "0" : raw;
+  if (Number(normalized) < 0) {
+    throw new Error("ETH leg must be zero or greater.");
+  }
+
+  return ethers.parseEther(normalized);
+}
+
+async function refreshTradeSidePreview(side) {
+  if (!nftContract) return;
+
+  const tokenSelect = side === "left" ? tradeLeftTokenSelect : tradeRightTokenSelect;
+  const imageEl = side === "left" ? tradeLeftImage : tradeRightImage;
+  const titleEl = side === "left" ? tradeLeftTitle : tradeRightTitle;
+
+  const tokenId = tokenSelect.value;
+  if (tokenId === "") {
+    imageEl.removeAttribute("src");
+    titleEl.textContent = side === "left" ? "Select a wallet and NFT" : "No right-side NFT selected (sale mode)";
     return;
   }
 
-  await refreshOwnershipRegistry();
-  const owned = ownershipRegistry.get(connectedAddress) || [];
-  setTokenSelectOptions(tradeLeftTokenSelect, owned);
-  tradeLeftAddressOutput.textContent = connectedAddress;
-  await refreshTradePreview();
+  try {
+    const tokenUri = await nftContract.tokenURI(tokenId);
+    const metadata = parseDataUriJson(tokenUri);
+
+    imageEl.src = metadata.image || "";
+    titleEl.textContent = metadata.name ? `${metadata.name} (Token #${tokenId})` : `Token #${tokenId}`;
+  } catch (err) {
+    imageEl.removeAttribute("src");
+    titleEl.textContent = `Could not load token #${tokenId}`;
+    appendTradeConsole(`${side === "left" ? "Left" : "Right"} preview failed: ${extractErrorMessage(err)}`);
+  }
 }
 
 async function refreshTradePreview() {
-  const tokenId = tradeLeftTokenSelect.value;
-  if (tokenId === "") {
-    tradeLeftImage.removeAttribute("src");
-    tradeLeftTitle.textContent = "No NFT selected";
+  if (!nftContract) return;
+
+  const leftTokenId = tradeLeftTokenSelect.value;
+  const rightTokenId = tradeRightTokenSelect.value;
+  if (leftTokenId === "") {
+    tradeRoyaltyReceiverOutput.textContent = "-";
+    tradeRoyaltyAmountOutput.textContent = "-";
+    appendTradeConsole("Select a left-side NFT to preview royalty policy.");
     return;
   }
 
   try {
-    const [tokenUri, notionalWei] = await Promise.all([
-      contract.tokenURI(tokenId),
-      Promise.resolve(ethers.parseEther((tradeNotionalInput.value || "0").toString())),
-    ]);
-    const metadata = parseDataUriJson(tokenUri);
-    const [receiver, amount] = await contract.royaltyInfo(tokenId, notionalWei);
+    const notionalWei = parseNotionalWei();
 
-    tradeLeftImage.src = metadata.image || "";
-    tradeLeftTitle.textContent = metadata.name ? `${metadata.name} (Token #${tokenId})` : `Token #${tokenId}`;
+    if (notionalWei === 0n && rightTokenId !== "") {
+      tradeRoyaltyReceiverOutput.textContent = "N/A (pure NFT swap)";
+      tradeRoyaltyAmountOutput.textContent = "0 ETH";
+      appendTradeConsole("Pure NFT↔NFT swap selected: no enforceable ERC-2981 payout base without ETH leg.");
+      return;
+    }
+
+    if (notionalWei === 0n && rightTokenId === "") {
+      tradeRoyaltyReceiverOutput.textContent = "-";
+      tradeRoyaltyAmountOutput.textContent = "0 ETH";
+      appendTradeConsole("ETH-only sale mode selected. Enter ETH leg > 0 for executable priced trade.");
+      return;
+    }
+
+    const [receiver, amount] = await nftContract.royaltyInfo(leftTokenId, notionalWei);
     tradeRoyaltyReceiverOutput.textContent = receiver;
     tradeRoyaltyAmountOutput.textContent = `${ethers.formatEther(amount)} ETH`;
-    appendTradeConsole(`Royalty preview for token #${tokenId}: ${ethers.formatEther(amount)} ETH to ${receiver}.`);
+
+    if (rightTokenId === "") {
+      appendTradeConsole(`Fixed-price sale preview: royalty ${ethers.formatEther(amount)} ETH to ${receiver}.`);
+    } else {
+      appendTradeConsole(`Swap+ETH leg preview: royalty ${ethers.formatEther(amount)} ETH to ${receiver} on left NFT sale leg.`);
+    }
   } catch (err) {
-    tradeLeftImage.removeAttribute("src");
-    tradeLeftTitle.textContent = `Could not load token #${tokenId}`;
-    appendTradeConsole(`Preview failed: ${err.message}`);
+    tradeRoyaltyReceiverOutput.textContent = "-";
+    tradeRoyaltyAmountOutput.textContent = "-";
+    appendTradeConsole(`Preview failed: ${extractErrorMessage(err)}`);
   }
 }
 
-async function transferSelectedNft() {
-  if (!contract || !connectedAddress) {
-    appendTradeConsole("Connect MetaMask first.");
+async function refreshTradeWalletsAndTokens(refreshRegistry = true) {
+  if (!nftContract || !connectedAddress) {
+    setWalletSelectOptions(tradeLeftWalletSelect, []);
+    setWalletSelectOptions(tradeRightWalletSelect, []);
+    setTokenSelectOptions(tradeLeftTokenSelect, []);
+    setTokenSelectOptions(tradeRightTokenSelect, [], true);
+    tradeLeftAddressOutput.textContent = "-";
+    tradeRightAddressOutput.textContent = "-";
+    clearTradeSide("left");
+    clearTradeSide("right");
     return;
   }
 
-  const tokenId = tradeLeftTokenSelect.value;
-  const recipient = recipientAddressInput.value.trim();
-  if (tokenId === "") {
-    appendTradeConsole("Select one of your NFTs first.");
+  if (refreshRegistry) {
+    await refreshOwnershipRegistry();
+  }
+
+  const knownWallets = Array.from(new Set([connectedAddress, ...ownershipRegistry.keys()]));
+  const currentLeft = tradeLeftWalletSelect.value;
+  const currentRight = tradeRightWalletSelect.value;
+
+  setWalletSelectOptions(tradeLeftWalletSelect, knownWallets, currentLeft || connectedAddress);
+  setWalletSelectOptions(tradeRightWalletSelect, knownWallets, currentRight || connectedAddress);
+
+  await loadTradeSide("left");
+  await loadTradeSide("right");
+  await refreshTradePreview();
+}
+
+async function loadTradeSide(side) {
+  const walletSelect = side === "left" ? tradeLeftWalletSelect : tradeRightWalletSelect;
+  const tokenSelect = side === "left" ? tradeLeftTokenSelect : tradeRightTokenSelect;
+  const addressOutput = side === "left" ? tradeLeftAddressOutput : tradeRightAddressOutput;
+
+  const wallet = walletSelect.value;
+  addressOutput.textContent = wallet || "-";
+
+  const ownedTokenIds = wallet ? (ownershipRegistry.get(wallet) || []) : [];
+  setTokenSelectOptions(tokenSelect, ownedTokenIds, side === "right");
+
+  await refreshTradeSidePreview(side);
+}
+
+async function assertSepoliaConnected() {
+  if (!provider) {
+    throw new Error("Connect MetaMask first.");
+  }
+
+  const network = await provider.getNetwork();
+  if (Number(network.chainId) !== SEPOLIA_CHAIN_ID) {
+    throw new Error(`Wrong network. Switch MetaMask to Sepolia (11155111), current chainId: ${Number(network.chainId)}.`);
+  }
+}
+
+async function isSettlementApproved(owner, tokenId) {
+  const approvedAddress = await nftContract.getApproved(tokenId);
+  if (approvedAddress.toLowerCase() === settlementContract.target.toLowerCase()) {
+    return true;
+  }
+
+  return nftContract.isApprovedForAll(owner, settlementContract.target);
+}
+
+async function executeTrade() {
+  if (!nftContract || !settlementContract || !connectedAddress) {
+    appendTradeConsole("Connect MetaMask and ensure settlement contract is configured.");
     return;
   }
-  if (!ethers.isAddress(recipient)) {
-    appendTradeConsole("Enter a valid recipient wallet address.");
+
+  const leftWallet = tradeLeftWalletSelect.value;
+  const rightWallet = tradeRightWalletSelect.value;
+  const leftTokenId = tradeLeftTokenSelect.value;
+  const rightTokenId = tradeRightTokenSelect.value;
+
+  if (!ethers.isAddress(leftWallet) || !ethers.isAddress(rightWallet)) {
+    appendTradeConsole("Select valid left/right wallet addresses.");
     return;
   }
+
+  if (leftTokenId === "") {
+    appendTradeConsole("Select a left-side NFT.");
+    return;
+  }
+
+  let notionalWei;
+  try {
+    notionalWei = parseNotionalWei();
+  } catch (err) {
+    appendTradeConsole(extractErrorMessage(err));
+    return;
+  }
+
+  const hasRightToken = rightTokenId !== "";
+  const normalizedConnected = connectedAddress.toLowerCase();
 
   try {
-    setLoader(true, "Waiting for MetaMask transfer approval...");
-    setButtonLoading(executeTradeBtn, true, "Transferring...");
+    await assertSepoliaConnected();
 
-    const owner = await contract.ownerOf(tokenId);
-    if (owner.toLowerCase() !== connectedAddress.toLowerCase()) {
-      throw new Error(`Connected wallet does not own token #${tokenId}.`);
+    setLoader(true, "Preparing settlement transaction...");
+    setButtonLoading(executeTradeBtn, true, "Submitting...");
+
+    const [leftOwnerOnChain, leftApproved] = await Promise.all([
+      nftContract.ownerOf(leftTokenId),
+      isSettlementApproved(leftWallet, leftTokenId),
+    ]);
+
+    if (leftOwnerOnChain.toLowerCase() !== leftWallet.toLowerCase()) {
+      throw new Error("Stale ownership detected on left NFT. Reload wallets and try again.");
     }
 
-    const tx = await contract.transferFrom(connectedAddress, recipient, tokenId);
-    appendTradeConsole(`Transfer submitted: ${tx.hash}`);
-    const receipt = await tx.wait();
+    if (!leftApproved) {
+      throw new Error(`No approval: left wallet must approve settlement (${settlementContract.target}) for token #${leftTokenId}.`);
+    }
 
-    appendTradeConsole(`Transfer complete: token #${tokenId} sent to ${recipient}.`);
-    setStatus(`Transfer successful.\nTx: ${receipt.hash}\nExplorer: ${SEPOLIA_EXPLORER_TX}${receipt.hash}`);
+    let tx;
+
+    if (!hasRightToken) {
+      if (notionalWei === 0n) {
+        throw new Error("Fixed-price sale requires ETH leg > 0.");
+      }
+
+      if (normalizedConnected !== rightWallet.toLowerCase()) {
+        throw new Error("Connected MetaMask must match right wallet (buyer/payer) for fixed-price sale.");
+      }
+
+      tx = await settlementContract.executeFixedPriceSale(
+        nftContract.target,
+        leftTokenId,
+        leftWallet,
+        rightWallet,
+        notionalWei,
+        { value: notionalWei }
+      );
+      appendTradeConsole(`Fixed-price sale submitted: ${tx.hash}`);
+    } else if (notionalWei === 0n) {
+      const [rightOwnerOnChain, rightApproved] = await Promise.all([
+        nftContract.ownerOf(rightTokenId),
+        isSettlementApproved(rightWallet, rightTokenId),
+      ]);
+
+      if (rightOwnerOnChain.toLowerCase() !== rightWallet.toLowerCase()) {
+        throw new Error("Stale ownership detected on right NFT. Reload wallets and try again.");
+      }
+
+      if (!rightApproved) {
+        throw new Error(`No approval: right wallet must approve settlement (${settlementContract.target}) for token #${rightTokenId}.`);
+      }
+
+      if (normalizedConnected !== leftWallet.toLowerCase() && normalizedConnected !== rightWallet.toLowerCase()) {
+        throw new Error("Connected MetaMask must be one of the swap counterparties.");
+      }
+
+      tx = await settlementContract.executePureSwap(
+        nftContract.target,
+        leftTokenId,
+        leftWallet,
+        rightTokenId,
+        rightWallet
+      );
+      appendTradeConsole(`Pure swap submitted: ${tx.hash}`);
+    } else {
+      const [rightOwnerOnChain, rightApproved] = await Promise.all([
+        nftContract.ownerOf(rightTokenId),
+        isSettlementApproved(rightWallet, rightTokenId),
+      ]);
+
+      if (rightOwnerOnChain.toLowerCase() !== rightWallet.toLowerCase()) {
+        throw new Error("Stale ownership detected on right NFT. Reload wallets and try again.");
+      }
+
+      if (!rightApproved) {
+        throw new Error(`No approval: right wallet must approve settlement (${settlementContract.target}) for token #${rightTokenId}.`);
+      }
+
+      if (normalizedConnected !== rightWallet.toLowerCase()) {
+        throw new Error("Connected MetaMask must match right wallet for swap+ETH settlement.");
+      }
+
+      tx = await settlementContract.executeSwapWithEthLeg(
+        nftContract.target,
+        leftTokenId,
+        leftWallet,
+        rightTokenId,
+        rightWallet,
+        notionalWei,
+        { value: notionalWei }
+      );
+      appendTradeConsole(`Swap+ETH settlement submitted: ${tx.hash}`);
+    }
+
+    const receipt = await tx.wait();
+    appendTradeConsole(`Settlement confirmed: ${receipt.hash}`);
+    setStatus(`Trade settlement successful.\nTx: ${receipt.hash}\nExplorer: ${SEPOLIA_EXPLORER_TX}${receipt.hash}`);
 
     await refreshOwnershipRegistry();
     await refreshWalletStats();
-    await refreshTransferTokens();
+    await refreshTradeWalletsAndTokens(false);
     renderRecentMintedIds();
   } catch (err) {
-    appendTradeConsole(`Transfer failed: ${err.message}`);
-    setStatus(`Transfer failed: ${err.message}`);
+    const msg = extractErrorMessage(err);
+    appendTradeConsole(`Execution failed: ${msg}`);
+    setStatus(`Trade failed: ${msg}`);
   } finally {
     setLoader(false);
-    setButtonLoading(executeTradeBtn, false, "Transferring...");
+    setButtonLoading(executeTradeBtn, false, "Submitting...");
   }
 }
 
@@ -436,11 +752,6 @@ function pushWalletMintHistory(wallet, tokenId) {
 }
 
 async function connectMetaMask() {
-  if (!hasDeployedContract()) {
-    setStatus("Deploy the contract to Sepolia first. Then commit the updated frontend/contract-info.json.");
-    return;
-  }
-
   try {
     setLoader(true, "Connecting MetaMask...");
     setButtonLoading(connectBtn, true, "Connecting...");
@@ -454,23 +765,48 @@ async function connectMetaMask() {
       throw new Error(`Please switch MetaMask to Sepolia. Current chainId: ${Number(network.chainId)}.`);
     }
 
-    if (Number(contractInfo.chainId) !== SEPOLIA_CHAIN_ID) {
-      throw new Error(`contract-info.json is not configured for Sepolia. Current chainId: ${contractInfo.chainId}.`);
+    if (Number(sepoliaConfig.chainId) !== SEPOLIA_CHAIN_ID) {
+      throw new Error(`sepolia-config.json has wrong chainId: ${sepoliaConfig.chainId}.`);
     }
 
-    const codeAtAddress = await provider.getCode(contractInfo.address);
-    if (codeAtAddress === "0x") {
-      throw new Error("No deployed contract found at the configured Sepolia address. Re-run npm run deploy:sepolia.");
+    if (!ethers.isAddress(sepoliaConfig.nft.address) || sepoliaConfig.nft.address === ZERO_ADDRESS) {
+      throw new Error("Bad NFT contract address in sepolia-config.json.");
+    }
+
+    if (!Array.isArray(sepoliaConfig.nft.abi) || sepoliaConfig.nft.abi.length === 0) {
+      throw new Error("NFT ABI missing in config. Re-run deployment to regenerate frontend config.");
+    }
+
+    const nftCode = await provider.getCode(sepoliaConfig.nft.address);
+    if (nftCode === "0x") {
+      throw new Error("No NFT contract deployed at configured address. Re-run deploy and update frontend config.");
     }
 
     signer = await provider.getSigner();
     connectedAddress = await signer.getAddress();
-    contract = new ethers.Contract(contractInfo.address, contractInfo.abi, signer);
+    nftContract = new ethers.Contract(sepoliaConfig.nft.address, sepoliaConfig.nft.abi, signer);
+
+    settlementContract = undefined;
+    if (
+      ethers.isAddress(sepoliaConfig.settlement.address) &&
+      sepoliaConfig.settlement.address !== ZERO_ADDRESS &&
+      Array.isArray(sepoliaConfig.settlement.abi) &&
+      sepoliaConfig.settlement.abi.length > 0
+    ) {
+      const settlementCode = await provider.getCode(sepoliaConfig.settlement.address);
+      if (settlementCode === "0x") {
+        appendTradeConsole("Configured settlement address has no code on Sepolia. Trade execution disabled until deploy.");
+      } else {
+        settlementContract = new ethers.Contract(sepoliaConfig.settlement.address, sepoliaConfig.settlement.abi, signer);
+      }
+    } else {
+      appendTradeConsole("Settlement contract config missing. Deploy TradeSettlement and update sepolia-config.json.");
+    }
 
     updateConnectionUi();
     await refreshOwnershipRegistry();
     await refreshWalletStats();
-    await refreshTransferTokens();
+    await refreshTradeWalletsAndTokens(false);
     renderRecentMintedIds();
 
     setOwnershipStatus(
@@ -478,14 +814,18 @@ async function connectMetaMask() {
       "ERC-721 token IDs are global. Anyone can view metadata; ownership is compared against your MetaMask account."
     );
 
+    const settlementLine = settlementContract
+      ? `Settlement: ${sepoliaConfig.settlement.address}`
+      : "Settlement: not ready (trade execution disabled)";
+
     setStatus(
       `MetaMask connected on Sepolia.\n` +
       `Wallet: ${connectedAddress}\n` +
-      `Contract: ${contractInfo.address}\n` +
-      `Next: click Mint NFT and approve the Sepolia test ETH transaction in MetaMask.`
+      `NFT Contract: ${sepoliaConfig.nft.address}\n` +
+      `${settlementLine}`
     );
   } catch (err) {
-    setStatus(`MetaMask connect failed: ${err.message}`);
+    setStatus(`MetaMask connect failed: ${extractErrorMessage(err)}`);
   } finally {
     setLoader(false);
     setButtonLoading(connectBtn, false, "Connecting...");
@@ -493,7 +833,7 @@ async function connectMetaMask() {
 }
 
 async function mintNft() {
-  if (!contract) {
+  if (!nftContract) {
     setStatus("Connect MetaMask first.");
     return;
   }
@@ -503,13 +843,13 @@ async function mintNft() {
     setButtonLoading(mintBtn, true, "Minting...");
     setStatus("Approve the mint transaction in MetaMask. Sepolia test ETH pays the gas fee.");
 
-    const tx = await contract.mint();
+    const tx = await nftContract.mint();
     const receipt = await tx.wait();
 
     const transferLog = receipt.logs
       .map((log) => {
         try {
-          return contract.interface.parseLog(log);
+          return nftContract.interface.parseLog(log);
         } catch {
           return null;
         }
@@ -524,7 +864,7 @@ async function mintNft() {
       pushWalletMintHistory(connectedAddress, mintedTokenId);
       await refreshOwnershipRegistry();
       await refreshWalletStats();
-      await refreshTransferTokens();
+      await refreshTradeWalletsAndTokens(false);
       renderRecentMintedIds();
     }
 
@@ -536,7 +876,7 @@ async function mintNft() {
       `Explorer: ${SEPOLIA_EXPLORER_TX}${receipt.hash}`
     );
   } catch (err) {
-    setStatus(`Mint failed: ${err.message}`);
+    setStatus(`Mint failed: ${extractErrorMessage(err)}`);
   } finally {
     setLoader(false);
     setButtonLoading(mintBtn, false, "Minting...");
@@ -544,7 +884,7 @@ async function mintNft() {
 }
 
 async function viewToken() {
-  if (!contract) {
+  if (!nftContract) {
     setStatus("Connect MetaMask first.");
     return;
   }
@@ -560,8 +900,8 @@ async function viewToken() {
     setButtonLoading(viewBtn, true, "Loading...");
 
     const [owner, tokenUri] = await Promise.all([
-      contract.ownerOf(tokenId),
-      contract.tokenURI(tokenId),
+      nftContract.ownerOf(tokenId),
+      nftContract.tokenURI(tokenId),
     ]);
 
     const metadata = parseDataUriJson(tokenUri);
@@ -582,7 +922,7 @@ async function viewToken() {
     metadataOutput.textContent = "-";
     nftImage.removeAttribute("src");
     setOwnershipStatus("unknown", "Could not load this token. Check token ID and try again.");
-    setStatus(`View failed: ${err.message}`);
+    setStatus(`View failed: ${extractErrorMessage(err)}`);
   } finally {
     setLoader(false);
     setButtonLoading(viewBtn, false, "Loading...");
@@ -609,23 +949,13 @@ function bindWalletEvents() {
 
 async function init() {
   try {
-    contractInfo = await loadContractInfo();
-
-    if (!hasDeployedContract()) {
-      setStatus(
-        `Sepolia frontend is ready, but no contract address is configured yet.\n` +
-        `Run npm run deploy:sepolia, then commit the updated frontend/contract-info.json.`
-      );
-      updateConnectionUi();
-      renderMasterWalletView();
-      renderRecentMintedIds();
-      return;
-    }
+    sepoliaConfig = await loadSepoliaConfig();
 
     setStatus(
-      `Sepolia contract loaded: ${contractInfo.address}\n` +
-      `Network: ${contractInfo.network} (chainId ${contractInfo.chainId})\n` +
-      `Click Connect MetaMask to mint/view NFTs.`
+      `Sepolia config loaded.\n` +
+      `NFT: ${sepoliaConfig.nft.address}\n` +
+      `Settlement: ${sepoliaConfig.settlement.address}\n` +
+      `Click Connect MetaMask.`
     );
 
     setOwnershipStatus(
@@ -637,7 +967,8 @@ async function init() {
     renderMasterWalletView();
     renderRecentMintedIds();
   } catch (err) {
-    setStatus(`Initialization failed: ${err.message}`);
+    setStatus(`Initialization failed: ${extractErrorMessage(err)}`);
+    updateConnectionUi();
   }
 }
 
@@ -654,19 +985,36 @@ function bindEvents() {
 
   mintBtn.addEventListener("click", mintNft);
   viewBtn.addEventListener("click", viewToken);
+
   tradeLoadLeftBtn.addEventListener("click", () => {
-    refreshTransferTokens().catch((err) => appendTradeConsole(`Load failed: ${err.message}`));
+    refreshTradeWalletsAndTokens(true).catch((err) => appendTradeConsole(`Left reload failed: ${extractErrorMessage(err)}`));
+  });
+  tradeLoadRightBtn.addEventListener("click", () => {
+    refreshTradeWalletsAndTokens(true).catch((err) => appendTradeConsole(`Right reload failed: ${extractErrorMessage(err)}`));
+  });
+
+  tradeLeftWalletSelect.addEventListener("change", () => {
+    loadTradeSide("left").then(refreshTradePreview).catch((err) => appendTradeConsole(`Left wallet load failed: ${extractErrorMessage(err)}`));
+  });
+  tradeRightWalletSelect.addEventListener("change", () => {
+    loadTradeSide("right").then(refreshTradePreview).catch((err) => appendTradeConsole(`Right wallet load failed: ${extractErrorMessage(err)}`));
+  });
+
+  tradeLeftTokenSelect.addEventListener("change", () => {
+    refreshTradeSidePreview("left").then(refreshTradePreview).catch((err) => appendTradeConsole(`Left token preview failed: ${extractErrorMessage(err)}`));
+  });
+  tradeRightTokenSelect.addEventListener("change", () => {
+    refreshTradeSidePreview("right").then(refreshTradePreview).catch((err) => appendTradeConsole(`Right token preview failed: ${extractErrorMessage(err)}`));
+  });
+
+  tradeNotionalInput.addEventListener("change", () => {
+    refreshTradePreview().catch((err) => appendTradeConsole(`Preview failed: ${extractErrorMessage(err)}`));
   });
   tradePreviewBtn.addEventListener("click", () => {
-    refreshTradePreview().catch((err) => appendTradeConsole(`Preview failed: ${err.message}`));
+    refreshTradePreview().catch((err) => appendTradeConsole(`Preview failed: ${extractErrorMessage(err)}`));
   });
-  executeTradeBtn.addEventListener("click", transferSelectedNft);
-  tradeLeftTokenSelect.addEventListener("change", () => {
-    refreshTradePreview().catch((err) => appendTradeConsole(`Preview failed: ${err.message}`));
-  });
-  tradeNotionalInput.addEventListener("change", () => {
-    refreshTradePreview().catch((err) => appendTradeConsole(`Preview failed: ${err.message}`));
-  });
+  executeTradeBtn.addEventListener("click", executeTrade);
+
   copyConnectedBtn.addEventListener("click", () => copyText(connectedAddressOutput.textContent, "Connected wallet address copied."));
   copyOwnerBtn.addEventListener("click", () => copyText(ownerOutput.textContent, "Owner address copied."));
   copyTxBtn.addEventListener("click", () => copyText(lastMintTxOutput.textContent, "Last mint tx hash copied."));
@@ -678,5 +1026,5 @@ try {
   init();
 } catch (err) {
   console.error(err);
-  setStatus(`Startup error: ${err.message}`);
+  setStatus(`Startup error: ${extractErrorMessage(err)}`);
 }
