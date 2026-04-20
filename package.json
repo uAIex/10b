@@ -9,6 +9,7 @@
     "node": "HARDHAT_DISABLE_TELEMETRY_PROMPT=true HARDHAT_DISABLE_TELEMETRY=true hardhat node",
     "deploy:local": "HARDHAT_DISABLE_TELEMETRY_PROMPT=true HARDHAT_DISABLE_TELEMETRY=true hardhat run scripts/deploy.js --network localhost",
     "deploy:sepolia": "HARDHAT_DISABLE_TELEMETRY_PROMPT=true HARDHAT_DISABLE_TELEMETRY=true hardhat run scripts/deploy.js --network sepolia",
+    "deploy:prediction:sepolia": "HARDHAT_DISABLE_TELEMETRY_PROMPT=true HARDHAT_DISABLE_TELEMETRY=true hardhat run scripts/deploy-prediction.js --network sepolia",
     "frontend": "python3 -m http.server 5173 --directory frontend"
   },
   "devDependencies": {

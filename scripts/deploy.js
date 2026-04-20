@@ -31,8 +31,38 @@ async function main() {
   const settlementAddress = await settlement.getAddress();
   console.log(`TradeSettlement deployed at: ${settlementAddress}`);
 
+  const predictionFactory = await hre.ethers.getContractFactory("CS521PredictionMarket1155");
+  const prediction = await predictionFactory.deploy();
+  await prediction.waitForDeployment();
+  const predictionAddress = await prediction.getAddress();
+  console.log(`CS521PredictionMarket1155 deployed at: ${predictionAddress}`);
+
+  const latestBlock = await hre.ethers.provider.getBlock("latest");
+  const closeTime = BigInt(latestBlock.timestamp + 30 * 24 * 60 * 60);
+
+  await (
+    await prediction.createMarket(
+      0,
+      "Will ETH be above $3,000 at close?",
+      "Class demo ETH price market. Outcome is resolved by the project authority for now; a production version would use a price oracle.",
+      300000,
+      closeTime
+    )
+  ).wait();
+  await (
+    await prediction.createMarket(
+      1,
+      "Will the Celtics beat the Lakers in the demo NBA game?",
+      "Class demo NBA market. Outcome is resolved by the project authority after the game result is known.",
+      0,
+      closeTime
+    )
+  ).wait();
+  console.log("Created prediction markets: #1 ETH price, #2 NBA game");
+
   const nftArtifact = await hre.artifacts.readArtifact("CS521OnChainNFT");
   const settlementArtifact = await hre.artifacts.readArtifact("TradeSettlement");
+  const predictionArtifact = await hre.artifacts.readArtifact("CS521PredictionMarket1155");
 
   const sepoliaConfig = {
     network: hre.network.name,
@@ -46,6 +76,15 @@ async function main() {
       contractName: settlementArtifact.contractName,
       address: settlementAddress,
       abi: settlementArtifact.abi,
+    },
+    prediction: {
+      contractName: predictionArtifact.contractName,
+      address: predictionAddress,
+      abi: predictionArtifact.abi,
+      markets: {
+        ethPrice: 1,
+        nbaGame: 2,
+      },
     },
   };
 
@@ -69,6 +108,7 @@ async function main() {
     console.log("Sepolia deployment complete.");
     console.log(`NFT: ${nftAddress}`);
     console.log(`Settlement: ${settlementAddress}`);
+    console.log(`Prediction: ${predictionAddress}`);
   }
 }
 

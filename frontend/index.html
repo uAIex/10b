@@ -544,6 +544,7 @@
     <div class="mode-tabs">
       <button id="mintViewTabBtn" class="mode-tab active" type="button">Mint / View Mode</button>
       <button id="tradeTabBtn" class="mode-tab" type="button">Transfer Mode</button>
+      <button id="predictionTabBtn" class="mode-tab" type="button">Prediction Mode</button>
     </div>
 
     <div class="console-panel">
@@ -703,7 +704,7 @@
           <div class="row">
             <label for="tradeLeftTokenSelect">NFT</label>
             <select id="tradeLeftTokenSelect" style="flex: 1; min-width: 220px;"></select>
-            <button id="approveLeftBtn" type="button" class="mini-btn" disabled>Approve Settlement</button>
+            <button id="approveLeftBtn" type="button" class="mini-btn" disabled>Approve All</button>
           </div>
           <div class="kv"><strong>Address:</strong> <span id="tradeLeftAddressOutput" class="mono">-</span></div>
 
@@ -739,7 +740,7 @@
           <div class="row">
             <label for="tradeRightTokenSelect">NFT (optional for swap)</label>
             <select id="tradeRightTokenSelect" style="flex: 1; min-width: 220px;"></select>
-            <button id="approveRightBtn" type="button" class="mini-btn" disabled>Approve Settlement</button>
+            <button id="approveRightBtn" type="button" class="mini-btn" disabled>Approve All</button>
           </div>
           <div class="kv"><strong>Address:</strong> <span id="tradeRightAddressOutput" class="mono">-</span></div>
 
@@ -750,9 +751,88 @@
         </section>
       </div>
     </div>
+
+    <div id="predictionMode" class="mode-panel">
+      <section class="section">
+        <h3>
+          ERC-1155 Prediction Bets
+          <span class="help-tip" tabindex="0"
+            data-tip="Mint YES or NO ERC-1155 position tokens by staking Sepolia ETH. ETH price and NBA demo markets are resolved by the project authority in this version.">?</span>
+        </h3>
+        <p class="helper">This section demonstrates the ERC-1155 balance model: many wallets can hold balances of the
+          same YES or NO outcome token.</p>
+      </section>
+
+      <div class="main-grid">
+        <div class="left-col">
+          <section class="section">
+            <h3>Mint Position</h3>
+            <div class="row">
+              <label for="predictionMarketSelect">Market</label>
+              <select id="predictionMarketSelect" style="flex: 1; min-width: 260px;">
+                <option value="1">ETH Price: ETH above $3,000?</option>
+                <option value="2">NBA Game: Celtics beat Lakers?</option>
+              </select>
+            </div>
+            <div class="row">
+              <label for="predictionOutcomeSelect">Outcome</label>
+              <select id="predictionOutcomeSelect" style="flex: 1; min-width: 160px;">
+                <option value="1">YES</option>
+                <option value="2">NO</option>
+              </select>
+            </div>
+            <div class="row">
+              <label for="predictionStakeInput">Stake</label>
+              <input id="predictionStakeInput" type="number" min="0" step="0.001" value="0.01" />
+              <span class="helper">Sepolia ETH</span>
+            </div>
+            <div class="row">
+              <button id="mintPredictionBtn" type="button" disabled>Mint ERC-1155 Bet</button>
+              <button id="refreshPredictionBtn" type="button" class="mini-btn" disabled>Refresh Balances</button>
+            </div>
+          </section>
+
+          <section class="section">
+            <h3>Claim Winnings</h3>
+            <p class="helper">After the project authority resolves the selected market, winning YES/NO holders can claim
+              their share of the escrowed Sepolia ETH pool.</p>
+            <div class="row">
+              <button id="claimPredictionBtn" type="button" disabled>Claim Winnings</button>
+            </div>
+          </section>
+
+          <section class="section">
+            <h3>Authority Resolution</h3>
+            <p class="helper">For the class demo, the deployer/project authority resolves the ETH price or NBA market.
+              Non-owner wallets will be rejected by the contract.</p>
+            <div class="row">
+              <label for="predictionResolveOutcomeSelect">Winner</label>
+              <select id="predictionResolveOutcomeSelect" style="flex: 1; min-width: 160px;">
+                <option value="1">YES</option>
+                <option value="2">NO</option>
+              </select>
+              <button id="resolvePredictionBtn" type="button" class="danger-btn" disabled>Resolve Market</button>
+            </div>
+          </section>
+        </div>
+
+        <div class="right-col">
+          <section class="result-panel">
+            <h3>Market / Balance View</h3>
+            <div class="kv"><strong>Prediction contract:</strong> <span id="predictionContractOutput" class="mono">-</span></div>
+            <div class="kv"><strong>Question:</strong> <span id="predictionQuestionOutput">-</span></div>
+            <div class="kv"><strong>Status:</strong> <span id="predictionStatusOutput">-</span></div>
+            <div class="kv"><strong>Total pool:</strong> <span id="predictionPoolOutput">-</span></div>
+            <div class="kv"><strong>Your YES balance:</strong> <span id="predictionYesBalanceOutput">-</span></div>
+            <div class="kv"><strong>Your NO balance:</strong> <span id="predictionNoBalanceOutput">-</span></div>
+            <pre id="predictionConsoleOutput">Prediction console ready.</pre>
+          </section>
+        </div>
+      </div>
+    </div>
   </main>
 
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./app.js?v=prediction-erc1155-1"></script>
 </body>
 
 </html>

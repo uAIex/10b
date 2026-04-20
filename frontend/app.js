@@ -20,8 +20,10 @@ const connectBtn = getRequiredElement("connectBtn");
 const resetUiBtn = getRequiredElement("resetUiBtn");
 const mintViewTabBtn = getRequiredElement("mintViewTabBtn");
 const tradeTabBtn = getRequiredElement("tradeTabBtn");
+const predictionTabBtn = getRequiredElement("predictionTabBtn");
 const mintViewMode = getRequiredElement("mintViewMode");
 const tradeMode = getRequiredElement("tradeMode");
+const predictionMode = getRequiredElement("predictionMode");
 const tokenIdInput = getRequiredElement("tokenIdInput");
 const ownerOutput = getRequiredElement("ownerOutput");
 const metadataOutput = getRequiredElement("metadataOutput");
@@ -65,10 +67,27 @@ const tradeRoyaltyReceiverOutput = getRequiredElement("tradeRoyaltyReceiverOutpu
 const tradeRoyaltyAmountOutput = getRequiredElement("tradeRoyaltyAmountOutput");
 const tradeConsoleOutput = getRequiredElement("tradeConsoleOutput");
 
+const predictionMarketSelect = getRequiredElement("predictionMarketSelect");
+const predictionOutcomeSelect = getRequiredElement("predictionOutcomeSelect");
+const predictionStakeInput = getRequiredElement("predictionStakeInput");
+const mintPredictionBtn = getRequiredElement("mintPredictionBtn");
+const refreshPredictionBtn = getRequiredElement("refreshPredictionBtn");
+const claimPredictionBtn = getRequiredElement("claimPredictionBtn");
+const predictionResolveOutcomeSelect = getRequiredElement("predictionResolveOutcomeSelect");
+const resolvePredictionBtn = getRequiredElement("resolvePredictionBtn");
+const predictionContractOutput = getRequiredElement("predictionContractOutput");
+const predictionQuestionOutput = getRequiredElement("predictionQuestionOutput");
+const predictionStatusOutput = getRequiredElement("predictionStatusOutput");
+const predictionPoolOutput = getRequiredElement("predictionPoolOutput");
+const predictionYesBalanceOutput = getRequiredElement("predictionYesBalanceOutput");
+const predictionNoBalanceOutput = getRequiredElement("predictionNoBalanceOutput");
+const predictionConsoleOutput = getRequiredElement("predictionConsoleOutput");
+
 let provider;
 let signer;
 let nftContract;
 let settlementContract;
+let predictionContract;
 let sepoliaConfig;
 let connectedAddress = null;
 
@@ -77,10 +96,13 @@ let ownershipRegistry = new Map();
 
 function setActiveMode(mode) {
   const isTradeMode = mode === "trade";
-  mintViewMode.classList.toggle("active", !isTradeMode);
+  const isPredictionMode = mode === "prediction";
+  mintViewMode.classList.toggle("active", !isTradeMode && !isPredictionMode);
   tradeMode.classList.toggle("active", isTradeMode);
-  mintViewTabBtn.classList.toggle("active", !isTradeMode);
+  predictionMode.classList.toggle("active", isPredictionMode);
+  mintViewTabBtn.classList.toggle("active", !isTradeMode && !isPredictionMode);
   tradeTabBtn.classList.toggle("active", isTradeMode);
+  predictionTabBtn.classList.toggle("active", isPredictionMode);
 }
 
 function setStatus(message) {
@@ -90,6 +112,11 @@ function setStatus(message) {
 function appendTradeConsole(message) {
   const now = new Date().toLocaleTimeString();
   tradeConsoleOutput.textContent = `[${now}] ${message}\n${tradeConsoleOutput.textContent}`.trim();
+}
+
+function appendPredictionConsole(message) {
+  const now = new Date().toLocaleTimeString();
+  predictionConsoleOutput.textContent = `[${now}] ${message}\n${predictionConsoleOutput.textContent}`.trim();
 }
 
 function setLoader(visible, message = "Working...") {
@@ -194,6 +221,9 @@ async function loadSepoliaConfig() {
   const nftAbi = Array.isArray(primary?.nft?.abi) && primary.nft.abi.length > 0 ? primary.nft.abi : (legacy?.abi || []);
   const settlementAddress = primary?.settlement?.address ?? ZERO_ADDRESS;
   const settlementAbi = Array.isArray(primary?.settlement?.abi) ? primary.settlement.abi : [];
+  const predictionAddress = primary?.prediction?.address ?? ZERO_ADDRESS;
+  const predictionAbi = Array.isArray(primary?.prediction?.abi) ? primary.prediction.abi : [];
+  const predictionMarkets = primary?.prediction?.markets ?? {};
 
   if (!ethers.isAddress(nftAddress)) {
     throw new Error("Invalid NFT contract address in config.");
@@ -209,6 +239,14 @@ async function loadSepoliaConfig() {
     settlement: {
       address: settlementAddress,
       abi: settlementAbi,
+    },
+    prediction: {
+      address: predictionAddress,
+      abi: predictionAbi,
+      markets: {
+        ethPrice: Number(predictionMarkets.ethPrice ?? 1),
+        nbaGame: Number(predictionMarkets.nbaGame ?? 2),
+      },
     },
   };
 }
@@ -246,6 +284,9 @@ async function switchToSepolia() {
 function updateConnectionUi() {
   const nftReady = Boolean(nftContract && connectedAddress);
   const settlementReady = Boolean(settlementContract);
+  const predictionReady = Boolean(predictionContract);
+  const leftCanApprove = nftReady && settlementReady && tradeLeftTokenSelect.value !== "";
+  const rightCanApprove = nftReady && settlementReady && tradeRightTokenSelect.value !== "";
 
   mintBtn.disabled = !nftReady;
   viewBtn.disabled = !nftReady;
@@ -256,13 +297,22 @@ function updateConnectionUi() {
   tradeRightWalletSelect.disabled = !nftReady;
   tradeLeftTokenSelect.disabled = !nftReady;
   tradeRightTokenSelect.disabled = !nftReady;
-  approveLeftBtn.disabled = !(nftReady && settlementReady);
-  approveRightBtn.disabled = !(nftReady && settlementReady);
+  approveLeftBtn.disabled = !leftCanApprove;
+  approveRightBtn.disabled = !rightCanApprove;
   tradeNotionalInput.disabled = !nftReady;
   executeTradeBtn.disabled = !(nftReady && settlementReady);
+  predictionMarketSelect.disabled = !predictionReady;
+  predictionOutcomeSelect.disabled = !predictionReady;
+  predictionStakeInput.disabled = !predictionReady;
+  mintPredictionBtn.disabled = !predictionReady;
+  refreshPredictionBtn.disabled = !predictionReady;
+  claimPredictionBtn.disabled = !predictionReady;
+  predictionResolveOutcomeSelect.disabled = !predictionReady;
+  resolvePredictionBtn.disabled = !predictionReady;
 
   connectedWalletOutput.textContent = nftReady ? "MetaMask" : "None";
   connectedAddressOutput.textContent = connectedAddress || "None";
+  predictionContractOutput.textContent = predictionReady ? sepoliaConfig.prediction.address : "-";
 
   copyConnectedBtn.disabled = !nftReady;
 }
@@ -284,6 +334,7 @@ function resetUiState(options = {}) {
   signer = undefined;
   nftContract = undefined;
   settlementContract = undefined;
+  predictionContract = undefined;
   connectedAddress = null;
   ownershipRegistry = new Map();
 
@@ -299,6 +350,12 @@ function resetUiState(options = {}) {
   tokenIdInput.value = "0";
   tradeRoyaltyReceiverOutput.textContent = "-";
   tradeRoyaltyAmountOutput.textContent = "-";
+  predictionContractOutput.textContent = "-";
+  predictionQuestionOutput.textContent = "-";
+  predictionStatusOutput.textContent = "-";
+  predictionPoolOutput.textContent = "-";
+  predictionYesBalanceOutput.textContent = "-";
+  predictionNoBalanceOutput.textContent = "-";
   tradeLeftAddressOutput.textContent = "-";
   tradeRightAddressOutput.textContent = "-";
   tradeConsoleOutput.textContent = "Trade console ready.";
@@ -448,6 +505,7 @@ function setTokenSelectOptions(selectEl, tokenIds, includeEmptyOption = false) {
       opt.textContent = "No NFTs";
       selectEl.appendChild(opt);
     }
+    updateConnectionUi();
     return;
   }
 
@@ -457,6 +515,8 @@ function setTokenSelectOptions(selectEl, tokenIds, includeEmptyOption = false) {
     opt.textContent = `#${id}`;
     selectEl.appendChild(opt);
   });
+
+  updateConnectionUi();
 }
 
 function parseNotionalWei() {
@@ -467,6 +527,164 @@ function parseNotionalWei() {
   }
 
   return ethers.parseEther(normalized);
+}
+
+function selectedPredictionMarketId() {
+  return BigInt(predictionMarketSelect.value || "1");
+}
+
+function predictionOutcomeName(outcome) {
+  return Number(outcome) === 1 ? "YES" : "NO";
+}
+
+function readMarketField(market, name, index) {
+  return market?.[name] ?? market?.[index];
+}
+
+function configurePredictionMarketOptions() {
+  if (!sepoliaConfig?.prediction?.markets) return;
+
+  const ethOption = predictionMarketSelect.querySelector('option[value="1"]');
+  const nbaOption = predictionMarketSelect.querySelector('option[value="2"]');
+  if (ethOption) {
+    ethOption.value = String(sepoliaConfig.prediction.markets.ethPrice);
+  }
+  if (nbaOption) {
+    nbaOption.value = String(sepoliaConfig.prediction.markets.nbaGame);
+  }
+}
+
+async function refreshPredictionView() {
+  if (!predictionContract || !connectedAddress) {
+    predictionQuestionOutput.textContent = "-";
+    predictionStatusOutput.textContent = "-";
+    predictionPoolOutput.textContent = "-";
+    predictionYesBalanceOutput.textContent = "-";
+    predictionNoBalanceOutput.textContent = "-";
+    return;
+  }
+
+  const marketId = selectedPredictionMarketId();
+
+  try {
+    const market = await predictionContract.markets(marketId);
+    const question = readMarketField(market, "question", 1);
+    const totalPool = readMarketField(market, "totalPool", 5);
+    const resolved = readMarketField(market, "resolved", 8);
+    const winningOutcome = readMarketField(market, "winningOutcome", 9);
+    const yesTokenId = await predictionContract.positionTokenId(marketId, 1);
+    const noTokenId = await predictionContract.positionTokenId(marketId, 2);
+    const [yesBalance, noBalance] = await Promise.all([
+      predictionContract.balanceOf(connectedAddress, yesTokenId),
+      predictionContract.balanceOf(connectedAddress, noTokenId),
+    ]);
+
+    predictionQuestionOutput.textContent = question || "-";
+    predictionStatusOutput.textContent = resolved
+      ? `Resolved: ${predictionOutcomeName(winningOutcome)} won`
+      : "Open / unresolved";
+    predictionPoolOutput.textContent = `${ethers.formatEther(totalPool)} Sepolia ETH`;
+    predictionYesBalanceOutput.textContent = `${ethers.formatEther(yesBalance)} YES shares`;
+    predictionNoBalanceOutput.textContent = `${ethers.formatEther(noBalance)} NO shares`;
+  } catch (err) {
+    appendPredictionConsole(`Refresh failed: ${extractErrorMessage(err)}`);
+  }
+}
+
+async function mintPredictionPosition() {
+  if (!predictionContract || !connectedAddress) {
+    appendPredictionConsole("Connect MetaMask and ensure prediction contract is configured.");
+    return;
+  }
+
+  const marketId = selectedPredictionMarketId();
+  const outcome = Number(predictionOutcomeSelect.value);
+  const stakeText = (predictionStakeInput.value || "0").trim();
+
+  try {
+    await assertSepoliaConnected();
+    const stakeWei = ethers.parseEther(stakeText);
+    if (stakeWei <= 0n) {
+      throw new Error("Stake must be greater than zero.");
+    }
+
+    setLoader(true, "Minting ERC-1155 prediction position...");
+    setButtonLoading(mintPredictionBtn, true, "Minting...");
+    const tx = await predictionContract.mintPosition(marketId, outcome, { value: stakeWei });
+    appendPredictionConsole(`Prediction mint submitted: ${tx.hash}`);
+    const receipt = await tx.wait();
+    appendPredictionConsole(
+      `Minted ${stakeText} ${predictionOutcomeName(outcome)} shares for market #${marketId}: ${receipt.hash}`
+    );
+    setStatus(`Prediction position minted.\nTx: ${receipt.hash}\nExplorer: ${SEPOLIA_EXPLORER_TX}${receipt.hash}`);
+    await refreshPredictionView();
+  } catch (err) {
+    const msg = extractErrorMessage(err);
+    appendPredictionConsole(`Mint failed: ${msg}`);
+    setStatus(`Prediction mint failed: ${msg}`);
+  } finally {
+    setLoader(false);
+    setButtonLoading(mintPredictionBtn, false, "Minting...");
+  }
+}
+
+async function claimPredictionWinnings() {
+  if (!predictionContract || !connectedAddress) {
+    appendPredictionConsole("Connect MetaMask and ensure prediction contract is configured.");
+    return;
+  }
+
+  const marketId = selectedPredictionMarketId();
+
+  try {
+    await assertSepoliaConnected();
+    setLoader(true, "Claiming prediction winnings...");
+    setButtonLoading(claimPredictionBtn, true, "Claiming...");
+    const tx = await predictionContract.claim(marketId);
+    appendPredictionConsole(`Claim submitted: ${tx.hash}`);
+    const receipt = await tx.wait();
+    appendPredictionConsole(`Claim confirmed for market #${marketId}: ${receipt.hash}`);
+    setStatus(`Prediction claim confirmed.\nTx: ${receipt.hash}\nExplorer: ${SEPOLIA_EXPLORER_TX}${receipt.hash}`);
+    await refreshPredictionView();
+  } catch (err) {
+    const msg = extractErrorMessage(err);
+    appendPredictionConsole(`Claim failed: ${msg}`);
+    setStatus(`Prediction claim failed: ${msg}`);
+  } finally {
+    setLoader(false);
+    setButtonLoading(claimPredictionBtn, false, "Claiming...");
+  }
+}
+
+async function resolvePredictionMarket() {
+  if (!predictionContract || !connectedAddress) {
+    appendPredictionConsole("Connect MetaMask and ensure prediction contract is configured.");
+    return;
+  }
+
+  const marketId = selectedPredictionMarketId();
+  const winningOutcome = Number(predictionResolveOutcomeSelect.value);
+
+  try {
+    await assertSepoliaConnected();
+    setLoader(true, "Resolving prediction market...");
+    setButtonLoading(resolvePredictionBtn, true, "Resolving...");
+    const tx = await predictionContract.resolveMarket(marketId, winningOutcome);
+    appendPredictionConsole(`Resolution submitted for market #${marketId}: ${tx.hash}`);
+    const receipt = await tx.wait();
+    appendPredictionConsole(
+      `Market #${marketId} resolved to ${predictionOutcomeName(winningOutcome)}: ${receipt.hash}`
+    );
+    setStatus(`Prediction market resolved.\nTx: ${receipt.hash}\nExplorer: ${SEPOLIA_EXPLORER_TX}${receipt.hash}`);
+    await refreshPredictionView();
+  } catch (err) {
+    const msg = extractErrorMessage(err);
+    appendPredictionConsole(`Resolve failed: ${msg}`);
+    setStatus(`Prediction resolve failed: ${msg}`);
+  } finally {
+    setLoader(false);
+    setButtonLoading(resolvePredictionBtn, false, "Resolving...");
+  }
 }
 
 async function refreshTradeSidePreview(side) {
@@ -645,10 +863,10 @@ async function approveSettlementForTradeSide(side) {
       return;
     }
 
-    const tx = await nftContract.approve(settlementContract.target, tokenId);
-    appendTradeConsole(`Approval submitted for ${side} token #${tokenId}: ${tx.hash}`);
+    const tx = await nftContract.setApprovalForAll(settlementContract.target, true);
+    appendTradeConsole(`Approval submitted for all ${side} wallet NFTs: ${tx.hash}`);
     const receipt = await tx.wait();
-    appendTradeConsole(`Approval confirmed for ${side} token #${tokenId}: ${receipt.hash}`);
+    appendTradeConsole(`Approval confirmed for all ${side} wallet NFTs: ${receipt.hash}`);
     setStatus(`Settlement approval confirmed.\nTx: ${receipt.hash}\nExplorer: ${SEPOLIA_EXPLORER_TX}${receipt.hash}`);
   } catch (err) {
     const msg = extractErrorMessage(err);
@@ -863,10 +1081,28 @@ async function connectMetaMask() {
       appendTradeConsole("Settlement contract config missing. Deploy TradeSettlement and update sepolia-config.json.");
     }
 
+    predictionContract = undefined;
+    if (
+      ethers.isAddress(sepoliaConfig.prediction.address) &&
+      sepoliaConfig.prediction.address !== ZERO_ADDRESS &&
+      Array.isArray(sepoliaConfig.prediction.abi) &&
+      sepoliaConfig.prediction.abi.length > 0
+    ) {
+      const predictionCode = await provider.getCode(sepoliaConfig.prediction.address);
+      if (predictionCode === "0x") {
+        appendPredictionConsole("Configured prediction address has no code on Sepolia. Prediction minting disabled until deploy.");
+      } else {
+        predictionContract = new ethers.Contract(sepoliaConfig.prediction.address, sepoliaConfig.prediction.abi, signer);
+      }
+    } else {
+      appendPredictionConsole("Prediction contract config missing. Re-run deployment to add ERC-1155 markets.");
+    }
+
     updateConnectionUi();
     await refreshOwnershipRegistry();
     await refreshWalletStats();
     await refreshTradeWalletsAndTokens(false);
+    await refreshPredictionView();
     renderRecentMintedIds();
 
     setOwnershipStatus(
@@ -877,12 +1113,16 @@ async function connectMetaMask() {
     const settlementLine = settlementContract
       ? `Settlement: ${sepoliaConfig.settlement.address}`
       : "Settlement: not ready (trade execution disabled)";
+    const predictionLine = predictionContract
+      ? `Prediction: ${sepoliaConfig.prediction.address}`
+      : "Prediction: not ready (ERC-1155 betting disabled)";
 
     setStatus(
       `MetaMask connected on Sepolia.\n` +
       `Wallet: ${connectedAddress}\n` +
       `NFT Contract: ${sepoliaConfig.nft.address}\n` +
-      `${settlementLine}`
+      `${settlementLine}\n` +
+      `${predictionLine}`
     );
   } catch (err) {
     setStatus(`MetaMask connect failed: ${extractErrorMessage(err)}`);
@@ -1010,11 +1250,13 @@ function bindWalletEvents() {
 async function init() {
   try {
     sepoliaConfig = await loadSepoliaConfig();
+    configurePredictionMarketOptions();
 
     setStatus(
       `Sepolia config loaded.\n` +
       `NFT: ${sepoliaConfig.nft.address}\n` +
       `Settlement: ${sepoliaConfig.settlement.address}\n` +
+      `Prediction: ${sepoliaConfig.prediction.address}\n` +
       `Click Connect MetaMask.`
     );
 
@@ -1035,6 +1277,7 @@ async function init() {
 function bindEvents() {
   mintViewTabBtn.addEventListener("click", () => setActiveMode("mint-view"));
   tradeTabBtn.addEventListener("click", () => setActiveMode("trade"));
+  predictionTabBtn.addEventListener("click", () => setActiveMode("prediction"));
   connectBtn.addEventListener("click", connectMetaMask);
   resetUiBtn.addEventListener("click", () => {
     resetUiState({
@@ -1076,6 +1319,16 @@ function bindEvents() {
   approveLeftBtn.addEventListener("click", () => approveSettlementForTradeSide("left"));
   approveRightBtn.addEventListener("click", () => approveSettlementForTradeSide("right"));
   executeTradeBtn.addEventListener("click", executeTrade);
+
+  predictionMarketSelect.addEventListener("change", () => {
+    refreshPredictionView().catch((err) => appendPredictionConsole(`Refresh failed: ${extractErrorMessage(err)}`));
+  });
+  mintPredictionBtn.addEventListener("click", mintPredictionPosition);
+  refreshPredictionBtn.addEventListener("click", () => {
+    refreshPredictionView().catch((err) => appendPredictionConsole(`Refresh failed: ${extractErrorMessage(err)}`));
+  });
+  claimPredictionBtn.addEventListener("click", claimPredictionWinnings);
+  resolvePredictionBtn.addEventListener("click", resolvePredictionMarket);
 
   copyConnectedBtn.addEventListener("click", () => copyText(connectedAddressOutput.textContent, "Connected wallet address copied."));
   copyOwnerBtn.addEventListener("click", () => copyText(ownerOutput.textContent, "Owner address copied."));

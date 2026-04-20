@@ -14,6 +14,7 @@ This repository is an end-to-end NFT project built for CS 521. It includes a Sol
   - see ownership status relative to the connected wallet,
   - review wallet activity and a master ownership view,
   - transfer NFTs from the connected MetaMask wallet,
+  - mint ERC-1155 YES/NO prediction positions for an ETH price market and an NBA demo market,
   - follow live actions/errors in a Console panel at the top.
 - Syncs deployment output (contract address + ABI + chain info) directly into `frontend/contract-info.json`.
 
@@ -43,6 +44,9 @@ This section maps the implementation to common course project requirements.
 
 7. **Automatic contract info wiring to frontend**  
    `scripts/deploy.js` writes `frontend/contract-info.json` after each deployment.
+
+8. **ERC-1155 prediction market stretch**  
+   `contracts/CS521PredictionMarket1155.sol` mints balance-based YES/NO prediction positions backed by Sepolia ETH escrow.
 
 ## Repository structure
 
@@ -97,6 +101,17 @@ npm run deploy:sepolia
 
 The deployment script writes the Sepolia contract address, ABI, and chain ID into `frontend/contract-info.json`.
 
+If the ERC-721 NFT and trade settlement contracts are already deployed and you only need to add the ERC-1155 prediction market, run:
+
+```bash
+npm run deploy:prediction:sepolia
+```
+
+This updates `frontend/sepolia-config.json` with the prediction contract address and creates two demo markets:
+
+- ETH price market: "Will ETH be above $3,000 at close?"
+- NBA game market: "Will the Celtics beat the Lakers in the demo NBA game?"
+
 ## Run frontend locally
 
 ```bash
@@ -119,6 +134,8 @@ http://127.0.0.1:5173
 5. Enter the minted token ID and click **View NFT**.
 6. Confirm owner, metadata JSON, and image are displayed.
 7. Optional: use **Transfer Mode** to send a token to another Sepolia wallet.
+8. Optional: use **Prediction Mode** to mint ERC-1155 YES/NO positions with Sepolia ETH.
+9. Optional: connect as the deployer/project authority in **Prediction Mode** to resolve a market, then winners can claim.
 
 Tip: use a second MetaMask account to demonstrate ownership differences across accounts.
 
@@ -154,7 +171,9 @@ npm run test
 ## Notes on behavior
 
 - ERC-721 token IDs are global for the contract, not per wallet.
+- ERC-1155 prediction positions are balance-based: a wallet can hold a quantity of YES or NO shares for the same market.
 - Any wallet can read metadata for existing token IDs.
 - Ownership is wallet-specific and shown in the UI as owned/not-owned for the connected account.
 - MetaMask pays mint/transfer gas with Sepolia test ETH.
+- Prediction markets in this class demo are resolved by the project authority. A production ETH price market would use a price oracle, and a production NBA market would use an oracle or dispute system.
 - The Console panel is fixed-size and scrollable to avoid layout resizing from long messages.
