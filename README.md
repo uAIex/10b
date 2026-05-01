@@ -1,4 +1,4 @@
-# CS 521 NFT Demo Project (ERC-721)
+# NFT Demo Project (ERC-721)
 
 This repository is an end-to-end NFT project built for CS 521. It includes a Solidity smart contract, deployment scripts, automated tests, and a simple frontend that can connect, mint, and view NFTs.
 
